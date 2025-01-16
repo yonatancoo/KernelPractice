@@ -3,6 +3,8 @@
 Notes: 
 the M at the end of the make command is used to tell make to fetch the file from the current working directory (as we're telling it to run from the build folder under modules, and not the actual pwd)
 
+MODULE_LICENSE("GPL") is required when using GPL libs.
+
 A. How to print from the kernel: use the printk macro (or one of the various pr_{log_level} macros, depending on the need) to print to the kernel log. 
 B. How to compile a kernel module:
 C.

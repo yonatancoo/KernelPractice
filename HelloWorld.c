@@ -2,11 +2,13 @@
 #include <linux/kernel.h>
 
 int init_module(void) {
-    printk("Hello world!");
+    printk(KERN_INFO, "Hello world!");
     return 0; // Indicate module was initialized successfully.
 }
 
 void cleanup_module(void) {
-    printk("Goodbye world!");
+    printk(KERN_INFO, "Goodbye world!");
 }
+
+MODULE_LICENSE("GPL");
 
