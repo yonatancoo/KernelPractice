@@ -1,7 +1,7 @@
 # Stage 1:
 
 Notes: 
-the M at the end of the make command is used to tell make to fetch the file from the current working directory (as we're telling it to run from the build folder under modules, and not the actual pwd)
+the M at the end of the make command is used to tell make to fetch & return to the file from the current working directory (as we're telling it to run from the build folder under modules, and not the actual pwd)
 
 MODULE_LICENSE("GPL") is required when using GPL libs.
 
