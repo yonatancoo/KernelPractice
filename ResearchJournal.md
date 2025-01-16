@@ -10,3 +10,7 @@ B. How to compile a kernel module: Create a makefile & use kbuilds' obj-m += {fi
 C.
     1. How to load/unloadsa kernel module: insmod for loading, rmmod for unloading & modprobe can do both while also being more user friendly (As an example, rmmode mentions that the command modprobe -r removes modules as well as their dependent modules, which is safer).
     2. How to see a list of loaded kernel modules: lsmod/kmod list can be used to show a list of all loaded kernel modules.
+
+# Stage 2:
+about strace & tried figuring out what the syscals used by ls mean.
+points for tomorrow: read how the code for ls works & try to find the meaningful lines ins ls.
