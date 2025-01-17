@@ -10,3 +10,4 @@ void cleanup_module(void) {
     pr_info("Goodbye world!");
 }
 
+MODULE_LICENSE("GPL");
