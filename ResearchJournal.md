@@ -12,5 +12,8 @@ C.
     2. How to see a list of loaded kernel modules: lsmod/kmod list can be used to show a list of all loaded kernel modules.
 
 # Stage 2:
-about strace & tried figuring out what the syscals used by ls mean.
-points for tomorrow: read how the code for ls works & try to find the meaningful lines ins ls.
+Read about strace & tried figuring out what the syscals used by ls mean.
+Tried reading from the start - but it seems that a substantial amount of lines aren't all that relevant.
+Tried reading from the end - seems that getdents64 is the call responsible for getting the file names, which is then followed by write (which writes the result to the console).
+
+If there's a way to intercept either of these calls it should be possible to hide the file.
