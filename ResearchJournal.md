@@ -17,3 +17,7 @@ Tried reading from the start - but it seems that a substantial amount of lines a
 Tried reading from the end - seems that getdents64 is the call responsible for getting the file names, which is then followed by write (which writes the result to the console).
 
 If there's a way to intercept either of these calls it should be possible to hide the file.
+After looking around a bit for way to intercept syscalls I came across something called the "LD_PRELOAD trick".
+LD_PRELOAD is an env variable which loads before any other library, thus allowing us to make the linker use *our* functions instead of the intendend ones.
+
+After trying to make that work for a while & failing, I read a bit about the sys_call_table, which is what the kernel uses to do sys calls (Seems to no longer be the case in newer / long term versions of linux, but the one I'm using doesn't seem to be included in that list).
