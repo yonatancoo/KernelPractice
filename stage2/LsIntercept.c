@@ -10,9 +10,11 @@
 #include <linux/sched.h>
 #include <linux/kallsyms.h>
  
-typedef asmlinkage int (*original_write_t)(unsigned int, const char __user *, size_t);
+int new_write(unsigned int fd, const char __user *buf, size_t count);
+int load(void);
+void unload(void);
 
-static int orig_cr0;
+typedef asmlinkage int (*original_write_t)(unsigned int, const char __user *, size_t);
 static unsigned long *syscall_table = (unsigned long *)0xffffffff9be00320; 
 static original_write_t original_write_ptr;
  
@@ -21,37 +23,36 @@ static inline void wp_cr0(unsigned long val) {
 }
 
 static inline void zero_cr0(void) {
-     wp_cr0(read_cr0() & (~0x10000));
+    printk(KERN_ALERT "Unprotecting mem!");
+    wp_cr0(read_cr0() & (~0x10000));
 }
 
 static inline void one_cr0(void) {
-   wp_cr0(read_cr0() | 0x10000);
+    printk(KERN_ALERT "Protecting mem...");
+    wp_cr0(read_cr0() | 0x10000);
 }
 
 asmlinkage int new_write(unsigned int fd, const char __user *buf, size_t count) {
-    // hijacked write
     printk(KERN_ALERT "Hijacked!");
     return original_write_ptr(fd, buf, count);
 }
  
 int load(void) {
-    printk(KERN_ALERT "Hello world!");
-    printk(KERN_ALERT "Unprotecting mem!");
+    printk(KERN_ALERT "Initializing...");
     zero_cr0();
     original_write_ptr = (original_write_t)syscall_table[__NR_write];
-    printk(KERN_ALERT "Acquired write ptr!");
     syscall_table[__NR_write] = (unsigned long)new_write;
     printk(KERN_ALERT "Overrided write ptr!");
-    printk(KERN_ALERT "Protecting mem...");
     one_cr0();
+    printk(KERN_ALERT "Initialized successfuly!");
+
     return 0;
 }
  
 void unload(void) {
-    printk(KERN_ALERT "Unprotecting mem!");
+    printk(KERN_ALERT "Shutting down.");
     zero_cr0();
     syscall_table[__NR_write] = (unsigned long)original_write_ptr;  
-    printk(KERN_ALERT "Protecting mem...");
     one_cr0();
     printk(KERN_ALERT "Goodbye world...");
 }

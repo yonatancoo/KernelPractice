@@ -25,3 +25,11 @@ After trying to make that work for a while & failing, I read a bit about the sys
 It took some time but I managed to find the address of the call sys table using "cat /proc/kallsyms | grep sys_call_table" (For now I do this manually. Once I manage to make the address override work I will write a function which does this automatically)
 
 The issue now is that I can't manage to change the value of the cr0 register (which when unchanged forbids my module from overriding the addresses on the call sys table).
+
+It seems that the command "write_cr0" no longer functions as the cr0 register was pinned. 
+Found an article which suggested just writing the inline assmebly which write_cr0 used to 'execute' when called, which fixed the issue.
+
+Override still doesn't seem to work, write function does not cause a kern alert in the kern log as expected. 
+While looking for solution for some of the problems I've expereinced so far I've seen something regarding the way function signatures are stored in the sys call table being changed... Will look into it.
+
+I tend to think that the issue now really is that the sys_call_table override method was patched in recent versions of linux, will downgrade and check again...
