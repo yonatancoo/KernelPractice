@@ -35,3 +35,4 @@ While looking for solution for some of the problems I've expereinced so far I've
 I tend to think that the issue now really is that the sys_call_table override method was patched in recent versions of linux, will downgrade and check again...
 
 After downgrading the system freezes the moment the address of write is overriden.
+Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive registry pointers it works.
