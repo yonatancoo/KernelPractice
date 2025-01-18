@@ -36,3 +36,5 @@ I tend to think that the issue now really is that the sys_call_table override me
 
 After downgrading the system freezes the moment the address of write is overriden.
 Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive registry pointers it works.
+
+After trying to override the buffer passed on to write & failing (The buffer won't always represent a string, which makes it harder to work with) I've decided to try and work with gedents64, which is the sys call used to retreive information about the files in the directory.
