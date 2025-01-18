@@ -21,3 +21,7 @@ After looking around a bit for way to intercept syscalls I came across something
 LD_PRELOAD is an env variable which loads before any other library, thus allowing us to make the linker use *our* functions instead of the intendend ones.
 
 After trying to make that work for a while & failing, I read a bit about the sys_call_table, which is what the kernel uses to do sys calls (Seems to no longer be the case in newer / long term versions of linux, but the one I'm using doesn't seem to be included in that list).
+
+It took some time but I managed to find the address of the call sys table using "cat /proc/kallsyms | grep sys_call_table" (For now I do this manually. Once I manage to make the address override work I will write a function which does this automatically)
+
+The issue now is that I can't manage to change the value of the cr0 register (which when unchanged forbids my module from overriding the addresses on the call sys table).
