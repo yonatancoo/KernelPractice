@@ -38,3 +38,8 @@ After downgrading the system freezes the moment the address of write is override
 Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive registry pointers it works.
 
 After trying to override the buffer passed on to write & failing (The buffer won't always represent a string, which makes it harder to work with) I've decided to try and work with gedents64, which is the sys call used to retreive information about the files in the directory.
+
+Struggled for a while with getting the results of get_dents64. 
+First I tried accessing the si registry after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns 
+the linux_dirent64 struct.
+Still, I couldn't access any of the fields in that struct without the machine freezing. 
