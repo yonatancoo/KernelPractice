@@ -43,3 +43,6 @@ Struggled for a while with getting the results of get_dents64.
 First I tried accessing the si registry after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns 
 the linux_dirent64 struct.
 Still, I couldn't access any of the fields in that struct without the machine freezing. 
+
+It took some time but I eventually remembered how user/kernel memory works, and copied the actual dirent array. 
+Working now on figuring out what to do with the data, some of it is nonsensical.
