@@ -33,3 +33,5 @@ Override still doesn't seem to work, write function does not cause a kern alert 
 While looking for solution for some of the problems I've expereinced so far I've seen something regarding the way function signatures are stored in the sys call table being changed... Will look into it.
 
 I tend to think that the issue now really is that the sys_call_table override method was patched in recent versions of linux, will downgrade and check again...
+
+After downgrading the system freezes the moment the address of write is overriden.
