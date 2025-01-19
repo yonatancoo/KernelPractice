@@ -48,3 +48,6 @@ It took some time but I eventually remembered how user/kernel memory works, and 
 Working now on figuring out what to do with the data, some of it is nonsensical.
 
 Pretty sure that was due to using the wrong pt_regs struct, I think I've found the correct one, struggling to make it compile.
+After fixing the pt_regs struct the issue still wasn't solved, it seems I wasn't iterating properly through the array (Either the type of the number I used to iterate with, or the pointer of the array itself. Will need to figure out after I finish this step for good).
+
+The hook is actually hiding the file now, but the 'last' file in the array shows up twice.
