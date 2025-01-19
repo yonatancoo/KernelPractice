@@ -46,3 +46,5 @@ Still, I couldn't access any of the fields in that struct without the machine fr
 
 It took some time but I eventually remembered how user/kernel memory works, and copied the actual dirent array. 
 Working now on figuring out what to do with the data, some of it is nonsensical.
+
+Pretty sure that was due to using the wrong pt_regs struct, I think I've found the correct one, struggling to make it compile.
