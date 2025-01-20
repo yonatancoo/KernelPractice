@@ -3,7 +3,7 @@
 Notes: 
 the M at the end of the make command is used to tell make to fetch & return to the file from the current working directory (as we're telling it to run from the build folder under modules, and not the actual pwd)
 
-MODULE_LICENSE("GPL") is required when using GPL libs.
+MODULE_LICENSE("GPL") is required when using GPL libs (also causes an annoying compilation warning).
 
 A. How to print from the kernel: use the printk macro (or one of the various pr_{log_level} macros, depending on the need) to print to the kernel log. 
 B. How to compile a kernel module: Create a makefile & use kbuilds' obj-m += {file_name}.o - this tells kbuild to build a kernel module using the source file named {file_name}.c (after building {file_name}.0 & linking it with it's source file).
@@ -22,25 +22,25 @@ LD_PRELOAD is an env variable which loads before any other library, thus allowin
 
 After trying to make that work for a while & failing, I read a bit about the sys_call_table, which is what the kernel uses to do sys calls (Seems to no longer be the case in newer / long term versions of linux, but the one I'm using doesn't seem to be included in that list).
 
-It took some time but I managed to find the address of the call sys table using "cat /proc/kallsyms | grep sys_call_table" (For now I do this manually. Once I manage to make the address override work I will write a function which does this automatically)
+It took some time but I managed to find the address of the call sys table using "cat /proc/kallsyms | grep sys_call_table" (For now I do this manually. Once I manage to make the address override work I will write a function that does so instead)
 
 The issue now is that I can't manage to change the value of the cr0 register (which when unchanged forbids my module from overriding the addresses on the call sys table).
 
-It seems that the command "write_cr0" no longer functions as the cr0 register was pinned. 
-Found an article which suggested just writing the inline assmebly which write_cr0 used to 'execute' when called, which fixed the issue.
+It seems that the command "write_cr0" no longer functions as the function responsible was modified to not work under certain circumstances. 
+Found an article which suggested writing the inline assmebly which write_cr0 used to 'execute' when called, which fixed the issue.
 
 Override still doesn't seem to work, write function does not cause a kern alert in the kern log as expected. 
-While looking for solution for some of the problems I've expereinced so far I've seen something regarding the way function signatures are stored in the sys call table being changed... Will look into it.
+While looking for a solution for some of the problems I've expereinced so far I've seen something regarding the way function signatures are stored in the sys call table being changed... Will look into it.
 
 I tend to think that the issue now really is that the sys_call_table override method was patched in recent versions of linux, will downgrade and check again...
 
 After downgrading the system freezes the moment the address of write is overriden.
-Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive registry pointers it works.
+Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive register pointers it works.
 
 After trying to override the buffer passed on to write & failing (The buffer won't always represent a string, which makes it harder to work with) I've decided to try and work with gedents64, which is the sys call used to retreive information about the files in the directory.
 
 Struggled for a while with getting the results of get_dents64. 
-First I tried accessing the si registry after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns 
+First I tried accessing the si register after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns 
 the linux_dirent64 struct.
 Still, I couldn't access any of the fields in that struct without the machine freezing. 
 
@@ -51,4 +51,7 @@ Pretty sure that was due to using the wrong pt_regs struct, I think I've found t
 After fixing the pt_regs struct the issue still wasn't solved, it seems I wasn't iterating properly through the array (Either the type of the number I used to iterate with, or the pointer of the array itself. Will need to figure out after I finish this step for good).
 
 The hook is actually hiding the file now, but the 'last' file in the array shows up twice.
-The total length I returned was too long, after fixing it the duplication glitch was resolved, all that's left is to pretty up the code, figure out the bug I experienced with the pointer types.
+The total length I returned was too long, after fixing it the duplication glitch was resolved, all that's left is to patch up the code & figure out the bug I experienced with the pointer types.
+
+Bug was due to the "pointer" I was increasing being a struct, once I turned it into a pointer iterating through the array worked as expected.
+Now that the module is stable, I've deleted some of the code I kept due 'suspicions' (found that constantly changing code I had no reason to suspect didn't work was counter-productive. That being said, not cleaning up the code did make it quite messy).
