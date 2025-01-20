@@ -55,3 +55,18 @@ The total length I returned was too long, after fixing it the duplication glitch
 
 Bug was due to the "pointer" I was increasing being a struct, once I turned it into a pointer iterating through the array worked as expected.
 Now that the module is stable, I've deleted some of the code I kept due 'suspicions' (found that constantly changing code I had no reason to suspect didn't work was counter-productive. That being said, not cleaning up the code did make it quite messy).
+
+# Stage 3:
+Started by running strace on netstat -a (such that all sockets will be displayed).
+After glancing at the syscalls, there doesn't seem to be any specific call which netstat uses to retreive information regarding open sockets.
+
+Started looking at the files opened by the program, skipped over names which seemed irrelevant, until I found /proc/net/tcp.
+After turning off the http server and reopening it and comparing multiple times, it seems that /proc/net/tcp contains an up to date list of active tcp sockets (confirmed this via kernel archives).
+
+After looking around in the /proc/net directory I'm confident that the directory pretty much contains all of the relevant information that netstat uses to figure out which sockets are active.
+
+Going back to /proc/net/tcp, a simple google search yields the following page: "https://www.kernel.org/doc/Documentation/networking/proc_net_tcp.txt"
+Which explains that the file is created/updated via the tcp4/6_seq_show functions. 
+
+If we hijack these functions, we could use them to hide sockets.
+After reading about how seq files work, and then tcp4_seq_show, I should be able to extract the socket info from the socket_common struct (which seems to be available regardless of the state of the socket) and check whether it matches the socket we're trying to hide. If it is, simply don't call the original function and return success, otherwise - call the original function.
