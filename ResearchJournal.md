@@ -70,3 +70,7 @@ Which explains that the file is created/updated via the tcp4/6_seq_show function
 
 If we hijack these functions, we could use them to hide sockets.
 After reading about how seq files work, and then tcp4_seq_show, I should be able to extract the socket info from the socket_common struct (which seems to be available regardless of the state of the socket) and check whether it matches the socket we're trying to hide. If it is, simply don't call the original function and return success, otherwise - call the original function.
+
+Tried finding tcp4_seq_show in kallsyms, and it was indeed there. 
+I've managed to override the function's pointer - but I've yet to actually hook it (netstat crashes when running).
+I'm guessing it has something to do with the functions signature, main reason being that reverting the function (resetting it back to the original pointer) works.
