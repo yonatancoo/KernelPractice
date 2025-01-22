@@ -74,3 +74,12 @@ After reading about how seq files work, and then tcp4_seq_show, I should be able
 Tried finding tcp4_seq_show in kallsyms, and it was indeed there. 
 I've managed to override the function's pointer - but I've yet to actually hook it (netstat crashes when running).
 I'm guessing it has something to do with the functions signature, main reason being that reverting the function (resetting it back to the original pointer) works.
+
+I mixed up the concept of hooking a function via the syscall table & hooking functions in general. 
+Reading now how hooking kernel function works.
+
+Found an example of how to trace functions using ftrace (https://www.kernel.org/doc/html/v4.17/trace/ftrace-uses.html)
+I then found an explanation of how to hook functions using ftrace, by changing the value of the RIP registry to that of the function I'm interested in running (https://www.apriorit.com/dev-blog/546-hooking-linux-functions-2).
+
+Managed to hook the function and extract the local address of the tcp4 sockets.
+All that's left to do is write the code that checks whether the current seq file being handled matches the ip/port we're trying to hide.
