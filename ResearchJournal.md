@@ -83,3 +83,5 @@ I then found an explanation of how to hook functions using ftrace, by changing t
 
 Managed to hook the function and extract the local address of the tcp4 sockets.
 All that's left to do is write the code that checks whether the current seq file being handled matches the ip/port we're trying to hide.
+
+Read a bit & teste kallsyms_lookup_name (which does exactly what you'd expect). Added it to this stage, and will add it to stage 2 aswell.
