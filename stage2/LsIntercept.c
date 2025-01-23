@@ -2,7 +2,6 @@
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
 #include <linux/dirent.h>
-#include <asm/cacheflush.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <stdbool.h>
