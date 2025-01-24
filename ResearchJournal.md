@@ -118,3 +118,26 @@ After reading about recvfrom I saw that there are multiple implementations (read
 Knowing that these offer similar functionality, I tend to believe that they all use a very similar/the same command (at least when it comes to UDP) to receive/read new messages.
 
 
+# Stage-6
+I used strace on lsmod to see which syscalls are called.
+The output seemed pretty similar to ps, a /proc/ file read operation followed by a lot of console writes.
+
+This time the proc file was /proc/modules, which seems to contain a list of all loaded modules.
+Much like stage-3, assuming this file is updated via a seq_file function, it should be possible to hide a kernel module from that list by hooking onto the seq_file function which creates it.
+
+I couldn't really find any information about how /proc/modules is created, so I opened the kernel source code and looked in /kernel/module.c (under the assumption it probably contains the code that does so).
+
+By searching for functions which receive seq_file's as an input I found m_show, which seemed to be the relevant function.  
+It's name indicated as such, and it had all of the relevant seq_printf calls.
+
+I used the code from stage-3 to hook m_show such that a kernel log was outputted when the function was called. 
+I then called lsmod & checked the kernel log, which was full of the log messages I had set for m_show - which means that the function is probably the one responsible for initializing /proc/modules.
+
+I then looked at m_show's implementation to see how I could prevent it from printing out a given kernel module - the first line of the function converts the "p" pointer to a module struct (via a call to a function named list_entry, who's implementation I couldn't find)
+
+Regardless, I tried casting the pointer to the module struct and then printed to the kernel log the module's name. 
+For reasons I'm trying to figure out the name was offset by 8 bytes.
+Im leaning twoards list_entry shifting the pointer 8 bytes forward for one reason or another, or maybe even the pointer itself (which is supposed to be 8 bits on my 64bit system being involved).
+
+Still, shifting the name pointer 8 bytes back solved the issue. 
+I then added a bit of code which returns success without calling the actual function when the module we're trying to hide comes up, which successfully hid the module from lsmod & kmod list, without hurting it's ability to be removed.
