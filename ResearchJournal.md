@@ -8,12 +8,12 @@ MODULE_LICENSE("GPL") is required when using GPL libs (also causes an annoying c
 A. How to print from the kernel: use the printk macro (or one of the various pr_{log_level} macros, depending on the need) to print to the kernel log. 
 B. How to compile a kernel module: Create a makefile & use kbuilds' obj-m += {file_name}.o - this tells kbuild to build a kernel module using the source file named {file_name}.c (after building {file_name}.0 & linking it with it's source file).
 C.
-    1. How to load/unloadsa kernel module: insmod for loading, rmmod for unloading & modprobe can do both while also being more user friendly (As an example, rmmode mentions that the command modprobe -r removes modules as well as their dependent modules, which is safer).
+    1. How to load/unload kernel module: insmod for loading, rmmod for unloading & modprobe can do both while also being more user friendly (As an example, rmmode mentions that the command modprobe -r removes modules as well as their dependent modules, which is safer).
     2. How to see a list of loaded kernel modules: lsmod/kmod list can be used to show a list of all loaded kernel modules.
 
 # Stage 2:
 Read about strace & tried figuring out what the syscals used by ls mean.
-Tried reading from the start - but it seems that a substantial amount of lines aren't all that relevant.
+Tried reading from the start - but it seems that a substantial amount of calls aren't all that relevant.
 Tried reading from the end - seems that getdents64 is the call responsible for getting the file names, which is then followed by write (which writes the result to the console).
 
 If there's a way to intercept either of these calls it should be possible to hide the file.
@@ -26,10 +26,10 @@ It took some time but I managed to find the address of the call sys table using 
 
 The issue now is that I can't manage to change the value of the cr0 register (which when unchanged forbids my module from overriding the addresses on the call sys table).
 
-It seems that the command "write_cr0" no longer functions as the function responsible was modified to not work under certain circumstances. 
+It seems that the command "write_cr0" no longer functions as it was modified to not work under certain circumstances. 
 Found an article which suggested writing the inline assmebly which write_cr0 used to 'execute' when called, which fixed the issue.
 
-Override still doesn't seem to work, write function does not cause a kern alert in the kern log as expected. 
+Override still doesn't seem to work, write function does not cause a kern alert in the kernel log as expected. 
 While looking for a solution for some of the problems I've expereinced so far I've seen something regarding the way function signatures are stored in the sys call table being changed... Will look into it.
 
 I tend to think that the issue now really is that the sys_call_table override method was patched in recent versions of linux, will downgrade and check again...
@@ -37,14 +37,13 @@ I tend to think that the issue now really is that the sys_call_table override me
 After downgrading the system freezes the moment the address of write is overriden.
 Hijacked worked for the first time! The reason it froze was due to the signature change I speculated about above, after changing it to receive register pointers it works.
 
-After trying to override the buffer passed on to write & failing (The buffer won't always represent a string, which makes it harder to work with) I've decided to try and work with gedents64, which is the sys call used to retreive information about the files in the directory.
+After trying to override the buffer argument of the write syscall & failing (The buffer won't always represent a string, which makes it harder to work with) I've decided to try and work with gedents64 - which is the sys call used to retreive information about the files in a given directory.
 
 Struggled for a while with getting the results of get_dents64. 
-First I tried accessing the si register after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns 
-the linux_dirent64 struct.
+First I tried accessing the si register after casting the pointer to a linux_dirent struct, which obviously didn't work as get_dents64 returns the linux_dirent64 struct.
 Still, I couldn't access any of the fields in that struct without the machine freezing. 
 
-It took some time but I eventually remembered how user/kernel memory works, and copied the actual dirent array. 
+It took some time but I eventually remembered how user/kernel memory works, and copied the actual dirent array from user space over to kernel space. 
 Working now on figuring out what to do with the data, some of it is nonsensical.
 
 Pretty sure that was due to using the wrong pt_regs struct, I think I've found the correct one, struggling to make it compile.
@@ -84,10 +83,10 @@ I then found an explanation of how to hook functions using ftrace, by changing t
 Managed to hook the function and extract the local address of the tcp4 sockets.
 All that's left to do is write the code that checks whether the current seq file being handled matches the ip/port we're trying to hide.
 
-Read a bit & teste kallsyms_lookup_name (which does exactly what you'd expect). Added it to this stage, and will add it to stage 2 aswell.
+Read a bit & tested kallsyms_lookup_name (which does exactly what you'd expect). Added it to this stage, and will add it to stage 2 aswell.
 
 # Stage-4
-Started by running strace on "ps -e" (such that all user processes will be displayed) and read from the end to the beggining (by now I know that most of the first syscalls are related to memory allocation & setting up the call itself, rather than actually executing meaningful code to this exercise).
+Started by running strace on "ps -e" (such that all user processes will be displayed) and read from the end to the beggining (by now I know that most of the first syscalls are related to memory allocation & setting up the call itself, rather than the calls that interest me).
 
 I very quickly noticed that ps executes openat requests for each of the proc process "files" (while reading about proc/net/tcp I was curious as to why the proc directory had a lot of "files"/"directories" with seemingly random names - which turned out to be information regarding running processes sorted by their PID's).
 
