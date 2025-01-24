@@ -95,7 +95,7 @@ Preceding the first openat request for a proc file, a getdents64 call is exuecte
 
 I'll start by trying to hide the process using the module I wrote in stage 2 (Which will hide any files that start with that PID, which obviously isn't ideal - but it should be enough to show that my suspicions are correct).
 
-POC worked, all that's left now is to combine the two modules & ensure that the module in stage 2 only hides files in the /proc/ directory. 
+POC worked, all that's left now is to use the module & ensure that the module in stage 2 only hides files in the /proc/ directory. 
 Regarding stage 2 only hiding the /proc/ directory - I've found a way to get the file struct from the file descriptor on stack overflow (https://stackoverflow.com/questions/17885676/in-linux-how-can-i-get-the-filename-from-the-struct-file-structure-while-ste).
 
 I suspect that because /proc/ is a virtual file system, the "file name" of the file descriptor received by getdents64 is "/" (Or in other words, the top hierarchy directory). So my proposed solution won't work.
