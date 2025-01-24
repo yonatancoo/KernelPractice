@@ -107,3 +107,14 @@ I'll try hooking openat and returning an error when the process I'm interested i
 I was getting annoyed of recompiling the module whenever I wanted to change a paramter, so I checked whether it's possible to pass arguments to the compiled module - and it seems like it is (https://tldp.org/LDP/lkmpg/2.6/html/x323.html). 
 If it works here, I'll update the previous stages as well.
 
+# Stage-5
+Since the main objective this time is to prevent UDP packets from being received by a program, I couldn't use strace to quickly figure out the syscalls involved in the operation I'm trying to hijack.
+Instead, I started out by watching a short guide that explains how to send and receive UDP packets in C (https://www.youtube.com/watch?v=5PPfy-nUWIM).
+
+I figured that the guide would have to use some sort of syscalls to send & receive packets - which turned out to be correct.
+sendto & recvfrom, specifically.
+
+After reading about recvfrom I saw that there are multiple implementations (read, recvfrom, recvmsg and so on) which isn't ideal.
+Knowing that these offer similar functionality, I tend to believe that they all use a very similar/the same command (at least when it comes to UDP) to receive/read new messages.
+
+
