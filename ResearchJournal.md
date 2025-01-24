@@ -85,3 +85,26 @@ Managed to hook the function and extract the local address of the tcp4 sockets.
 All that's left to do is write the code that checks whether the current seq file being handled matches the ip/port we're trying to hide.
 
 Read a bit & teste kallsyms_lookup_name (which does exactly what you'd expect). Added it to this stage, and will add it to stage 2 aswell.
+
+# Stage-4
+Started by running strace on ps -e (such that all user processes will be displayed) and read from the end to the beggining (by now I know that most of the first syscalls are related to memory allocation & setting up the call itself, rather than actually executing meaningful code to this exercise).
+
+I very quickly noticed that ps executes openat requests for each of the proc process "files" (while reading about proc/net/tcp I was curious as to why the proc directory had a lot of "files"/"directories" with seemingly random names - which turned out to be information regarding running processes sorted by their PID's).
+
+Preceding the first openat request for a proc file, a getdents64 call is exuected on /proc/.
+
+I'll start by trying to hide the process using the module I wrote in stage 2 (Which will hide any files that start with that PID, which obviously isn't ideal - but it should be enough to show that my suspicions are correct).
+
+It worked, though I had to also use the module written in stage 3 to hide the process from "netstat -plten" (the process wasn't shown under the PID/Program name tab, but it's socket was - effectively revealing it's existence).
+
+All that's left now is to combine the two modules & ensure that the module in stage 2 only hides files in the /proc/ directory. 
+Regarding stage 2 only hiding the /proc/ directory - I've found a way to get the file struct from the file descriptor on stack overflow (https://stackoverflow.com/questions/17885676/in-linux-how-can-i-get-the-filename-from-the-struct-file-structure-while-ste).
+
+I suspect that because /proc/ is a virtual file system, the "file name" of the file descriptor received by getdents64 is "/" (Or in other words, the top hierarchy directory). So my proposed solution won't work.
+
+I'll try to rethink my approach.
+openat receives the file path, so I can safely try to 'hide' the file there.
+From strace it seems that a lot of the time ps tries to access information about a process which doesn't exist - and that doesn't cause it to crash.
+
+I'll try hooking openat and returning an error when the process I'm interested in hiding is the target.
+
