@@ -145,7 +145,35 @@ I then looked at m_show's implementation to see how I could prevent it from prin
 
 Regardless, I tried casting the pointer to the module struct and then printed to the kernel log the module's name. 
 For reasons I'm trying to figure out the name was offset by 8 bytes.
-Im leaning twoards list_entry shifting the pointer 8 bytes forward for one reason or another, or maybe even the pointer itself (which is supposed to be 8 bits on my 64bit system being involved).
+Im leaning twoards list_entry shifting the pointer 8 bytes forward for one reason or another, or maybe even the pointer itself (which is supposed to be 8 bytes on my 64bit system being involved).
 
 Still, shifting the name pointer 8 bytes back solved the issue. 
 I then added a bit of code which returns success without calling the actual function when the module we're trying to hide comes up, which successfully hid the module from lsmod & kmod list, without hurting it's ability to be removed.
+
+After reading about the list_entry macro I realized that the reason the struct was shifted by 8 bytes. 
+The p parameter is not the struct module itself, it's the list field, which comes after the state enum (which is 8 bytes in x64). 
+
+That to say, I was casting from the pointer of the list field, which is 8 bytes from the actual pointer of the struct.
+
+After looking a bit more at the output of lsmod I noticed that it prints (per module) the amount of modules that use it, and their names.
+My current method does not handle such a case.
+
+First of all I decided to see what it'll take to hide the name of the module, as that is a much more obvious sign.
+I tried hiding a module I knew was a dependency of an additional module, and then searched for the module that's dependent in strace, and I found that there's an openat syscall for a directory named: "/sys/module/{module_name}/holders.
+
+Opening that directory showed that it contains files named after the module's dependencies. 
+That call is then followed by a getdents64 syscall, and then the module & it's dependencies are written to the console.
+
+I recalled that in stage-4, I initially tried to hide the process by using the module from stage-2, with the additional check that the syscall is executed on the directory /proc/.
+
+That approach didn't work, because /proc/ is a virtual file system, such that the file descriptor used by getdents64 was referring to a file named "/" (as it IS running on /proc/ which is the highest hierarchy directory in the /proc/ virtual file system).
+
+This approach WILL work here, as the file under /sys/ is nested. 
+After importing the code from stage-2, tweaking it a bit & adding the path name validation, it seemed to work.
+
+All that's left is to figure out how to decrement the "Used by" number.
+Looking at the implementation of m_show, it calls a function named print_unload_info, which is responsible for writing some of the modules' metadata' to /proc/modules (like the names of the dependent modules - luckily lsmod doesn't use that information, as it'd be MUCH harder to hide).
+
+To get the number of dependent modules, print_unload_info calls a function named module_refcount. 
+It's exported to kallsyms, so I tend to believe it should be hookable (though I am having some trouble doing that).
+Should that be possible, decreasing the number of dependent modules is a matter of reusing some of the code from print_unload_info (which iterates over the dependent modules), and incrementing only when the dependent module's name doesn't match that of the module we're trying to hide.
