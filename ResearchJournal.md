@@ -117,6 +117,14 @@ sendto & recvfrom, specifically.
 After reading about recvfrom I saw that there are multiple implementations (read, recvfrom, recvmsg and so on) which isn't ideal.
 Knowing that these offer similar functionality, I tend to believe that they all use a very similar/the same command (at least when it comes to UDP) to receive/read new messages.
 
+After looking around in the linux kernel I found a function named udp_recvmsg, which I could probably use to filter out UDP packets as needed.
+But that is not the point of the exercise - which means I'll have to use a different approach, one that let's me trace all of the incoming packets and dictate whether or not they're allowed to 'pass'. In other words, a sort of simple firewall. 
+
+After looking around for a way to filter out packets I found netfilter/iptables.
+From there, I read about netfilter hooks, and found some resources for basic usage (https://blogs.oracle.com/linux/post/introduction-to-netfilter)
+
+I used the article above to write a small module which drops ALL icmp packets (just to see that it works like I expect it to)
+Now I need to think of a way to make the filter generic, or at least make it easier to add protocols/new filters.
 
 # Stage-6
 I used strace on lsmod to see which syscalls are called.
