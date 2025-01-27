@@ -70,6 +70,7 @@ int new_getdents64(const struct pt_regs *regs) {
         copy_to_user(buff_pointer, first, total_bytes_read);
     }
 
+    kfree(first);
     return total_bytes_read;
 }
  
