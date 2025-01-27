@@ -172,8 +172,8 @@ This approach WILL work here, as the file under /sys/ is nested.
 After importing the code from stage-2, tweaking it a bit & adding the path name validation, it seemed to work.
 
 All that's left is to figure out how to decrement the "Used by" number.
-Looking at the implementation of m_show, it calls a function named print_unload_info, which is responsible for writing some of the modules' metadata' to /proc/modules (like the names of the dependent modules - luckily lsmod doesn't use that information, as it'd be MUCH harder to hide).
+Initially I thought that lsmod gets the number via /proc/modules (which in turn gets it from module_refcount), but that turned out not to be the case (I noticed that the hook wasn't invoked). 
+Rereading strace lead me to see that a file named: "/sys/module/{module_name}/refcnt is opened & read for each of the modules.
+As expected, the file's content is the number of modules referencing the current module.
 
-To get the number of dependent modules, print_unload_info calls a function named module_refcount. 
-It's exported to kallsyms, so I tend to believe it should be hookable (though I am having some trouble doing that).
-Should that be possible, decreasing the number of dependent modules is a matter of reusing some of the code from print_unload_info (which iterates over the dependent modules), and incrementing only when the dependent module's name doesn't match that of the module we're trying to hide.
+Using the same approach I used for getdents64 on the read syscall (relying on the file descriptor to tell which file is being opened) and adjusting the refcount as needed should work.
