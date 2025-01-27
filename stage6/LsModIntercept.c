@@ -46,12 +46,6 @@ void notrace callback_func_base(struct pt_regs *regs, unsigned long parent_ip, u
     }
 }
 
-char* get_file_path_from_file_struct(char *path, struct file *file) {
-    
-
-    return path;
-}
-
 /* Does a already use b?
    Copied from module.c, as that function is not exported. */
 int already_uses(struct module *a, struct module *b)
