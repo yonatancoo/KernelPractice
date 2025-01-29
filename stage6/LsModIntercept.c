@@ -132,7 +132,7 @@ int new_getdents64(const struct pt_regs *regs) {
             return total_bytes_read;
         }
 
-        struct linux_dirent64 * curr = first;
+        struct linux_dirent64 *curr = first;
 
         int i = 0;
         while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
