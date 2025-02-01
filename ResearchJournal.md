@@ -125,3 +125,5 @@ From there, I read about netfilter hooks, and found some resources for basic usa
 
 I used the article above to write a small module which drops ALL icmp packets (just to see that it works like I expect it to)
 Now I need to think of a way to make the filter generic, or at least make it easier to add protocols/new filters.
+
+Got arp filtering to work.
