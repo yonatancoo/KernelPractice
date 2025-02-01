@@ -128,6 +128,8 @@ From there, I read about netfilter hooks and found some resources for basic usag
 I used the article above to write a small module that drops ALL ICMP packets (just to see that it works like I expect it to).
 Now I need to think of a way to make the filter generic, or at least make it easier to add protocols/new filters.
 
+Got arp filtering to work.
+
 # Stage-6
 I used strace on lsmod to see which syscalls are called.
 The output seemed pretty similar to ps, a /proc/ file read operation followed by a lot of console writes.
