@@ -15,7 +15,7 @@ unsigned int handle_ip_packet(void *priv, struct sk_buff *skb, const struct nf_h
 unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_hook_state *state);
 
 // Types & other consts.
-static char *ip_to_hide;
+static char *ip_to_hide = NULL;
 module_param(ip_to_hide, charp, 0);
 
 // 0 means no port filter.
@@ -42,6 +42,7 @@ char *ipaddr_to_string(__be32 ipaddr)
 bool filter_by_source_ip_port(__be32 source_address, int source_port) {
     char* ipaddr = ipaddr_to_string(source_address);
     bool does_ip_match = !strcmp(ipaddr, ip_to_hide);
+    kfree(ipaddr);
 
     if (port_to_hide == -1) {
         return does_ip_match;
@@ -51,11 +52,9 @@ bool filter_by_source_ip_port(__be32 source_address, int source_port) {
 } 
 
 unsigned int handle_ip_packet(void *priv, struct sk_buff *skb, const struct nf_hook_state *state) {
-    return NF_ACCEPT;
-
     struct iphdr *iph = ip_hdr(skb);
     __be32 source_address = iph->saddr;
-    unsigned int source_port = 0;
+    unsigned int source_port = -2;
 
     // To add support for another ip protocol just add an additional case statement that extracts the port (if it exists).
     switch (iph->protocol) {
@@ -69,7 +68,7 @@ unsigned int handle_ip_packet(void *priv, struct sk_buff *skb, const struct nf_h
     }
 
     if (filter_by_source_ip_port(source_address, source_port)) {
-        //printk("Dropping packet from ip address: %pI4 port: %d", source_address, source_port);
+        printk("Dropping packet from ip address: %pI4 port: %d", &source_address, source_port);
         return NF_DROP;
     }
 
@@ -86,19 +85,24 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
 
         if (!strcmp(source_ip_addr, ip_to_hide)) {
             printk("Dropping arp packet sent from ip: %s", source_ip_addr);
-            freek(source_ip_addr);
+            kfree(source_ip_addr);
 
             return NF_DROP;
         }
 
-        freek(source_ip_addr);
+        kfree(source_ip_addr);
     }
 
     return NF_ACCEPT;
 }
 
 int load(void) {
-    printk(KERN_ALERT "Initializing...");
+    if (ip_to_hide == NULL) {
+        printk(KERN_ALERT "ip to hide has not been set! Existing...");
+        return -1;
+    }
+
+    printk(KERN_ALERT "Initializing... ip to hide: %s port: %d", ip_to_hide, port_to_hide);
     nf_register_net_hook(&init_net, &ip_trace_ops);
     nf_register_net_hook(&init_net, &arp_trace_ops);
     printk(KERN_ALERT "Initialized successfuly!");
