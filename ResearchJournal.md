@@ -181,3 +181,7 @@ Rereading strace led me to see that a file named "/sys/module/{module_name}/refc
 As expected, the file's content is the number of modules referencing the current module.
 
 Relying on the same approach I used for getdents64 on the read syscall (using the file descriptor to tell which file is being opened), it should be possible to "adjust" the contents of refcnt as needed.
+
+# Notes
+
+Decided to make the module params editable via their /sys/ files in order to enable them to be changed during module runtime.
