@@ -56,7 +56,7 @@ unsigned int handle_ip_packet(void *priv, struct sk_buff *skb, const struct nf_h
     }
 
     if (filter_by_source_ip_port(source_address, source_port)) {
-        printk("Dropping packet from ip address: %pI4 port: %d", &source_address, source_port);
+        pr_info("Dropping packet from ip address: %pI4 port: %d", &source_address, source_port);
         return NF_DROP;
     }
 
@@ -67,13 +67,13 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
     struct arphdr *arphdr = arp_hdr(skb);
 
     if (htons(arphdr->ar_pro) == ETH_P_IP) {
-        void *packet_data_pointer =(void*)arphdr + sizeof(struct arphdr);
+        char *packet_data_pointer =(char*)arphdr + sizeof(struct arphdr);
         __be32 *source_protocol_address = (__be32*)(packet_data_pointer + arphdr->ar_hln);
         char *source_ip_addr = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
         ipaddr_to_string(*source_protocol_address, source_ip_addr);
 
         if (!strcmp(source_ip_addr, ip_to_hide)) {
-            printk("Dropping arp packet sent from ip: %s", source_ip_addr);
+            pr_info("Dropping arp packet sent from ip: %s", source_ip_addr);
             kfree(source_ip_addr);
 
             return NF_DROP;
@@ -87,22 +87,22 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
 
 int load(void) {
     if (ip_to_hide == NULL) {
-        printk(KERN_ALERT "ip to hide has not been set! Existing...");
+        pr_warn("ip to hide has not been set! Existing...");
         return -1;
     }
 
-    printk(KERN_ALERT "Initializing... ip to hide: %s port: %d", ip_to_hide, port_to_hide);
+    pr_info("Initializing... ip to hide: %s port: %d", ip_to_hide, port_to_hide);
     nf_register_net_hook(&init_net, &ip_trace_ops);
     nf_register_net_hook(&init_net, &arp_trace_ops);
-    printk(KERN_ALERT "Initialized successfuly!");
+    pr_info("Initialized successfuly!");
     return 0;
 }
 
 void unload(void) {
-    printk(KERN_ALERT "Shutting down.");
+    pr_info("Shutting down.");
     nf_unregister_net_hook(&init_net, &ip_trace_ops);
     nf_unregister_net_hook(&init_net, &arp_trace_ops);
-    printk(KERN_ALERT "Goodbye world...");
+    pr_info("Goodbye world...");
 }
 
 module_init(load);

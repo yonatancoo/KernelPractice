@@ -6,12 +6,12 @@ static inline void wp_cr0(unsigned long val) {
 }
 
 static inline void disable_write_protect(void) {
-    printk(KERN_ALERT "Disabling write protect!");
+    pr_info("Disabling write protect!");
     wp_cr0(read_cr0() & (~0x10000));
 }
 
 static inline void enable_write_protect(void) {
-    printk(KERN_ALERT "Enabling write protect...");
+    pr_info("Enabling write protect...");
     wp_cr0(read_cr0() | 0x10000);
 }
 

