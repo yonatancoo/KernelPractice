@@ -9,6 +9,7 @@
 #include <linux/udp.h>
 #include <linux/string.h>
 #include <stdbool.h>
+#include "../common/stringify/to_string.h"
 
 // Function prototype.
 unsigned int handle_ip_packet(void *priv, struct sk_buff *skb, const struct nf_hook_state *state);
@@ -25,22 +26,9 @@ module_param(port_to_hide, int, 0600);
 static struct nf_hook_ops ip_trace_ops = { .hook = (nf_hookfn*)handle_ip_packet, .hooknum = NF_INET_LOCAL_IN, .pf = NFPROTO_IPV4, .priority = NF_IP_PRI_FIRST };
 static struct nf_hook_ops arp_trace_ops = { .hook = (nf_hookfn*)handle_arp_packet, .hooknum = NF_ARP_IN, .pf = NFPROTO_ARP, .priority = INT_MIN };
 
-char *ipaddr_to_string(__be32 ipaddr)
-{
-    int first = (unsigned char)(ipaddr & 0xFF);
-    int second = (unsigned char)((ipaddr >> 8) & 0xFF);
-    int third = (unsigned char)((ipaddr >> 16) & 0xFF);
-    int fourth = (unsigned char)((ipaddr >> 24) & 0xFF);
-
-    // Maximum length of an ip string in ipv4
-    char *buffer = kmalloc(15 * 8, GFP_KERNEL);
-    sprintf(buffer, "%d.%d.%d.%d", first, second, third, fourth);
-
-    return buffer;
-}
-
 bool filter_by_source_ip_port(__be32 source_address, int source_port) {
-    char* ipaddr = ipaddr_to_string(source_address);
+    char *ipaddr = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
+    ipaddr_to_string(source_address, ipaddr);
     bool does_ip_match = !strcmp(ipaddr, ip_to_hide);
     kfree(ipaddr);
 
@@ -81,7 +69,8 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
     if (htons(arphdr->ar_pro) == ETH_P_IP) {
         void *packet_data_pointer =(void*)arphdr + sizeof(struct arphdr);
         __be32 *source_protocol_address = (__be32*)(packet_data_pointer + arphdr->ar_hln);
-        char *source_ip_addr = ipaddr_to_string(*source_protocol_address);
+        char *source_ip_addr = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
+        ipaddr_to_string(*source_protocol_address, source_ip_addr);
 
         if (!strcmp(source_ip_addr, ip_to_hide)) {
             printk("Dropping arp packet sent from ip: %s", source_ip_addr);

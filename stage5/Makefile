@@ -1,4 +1,5 @@
-obj-m += PacketIntercept.o
+obj-m += PacketIntercepter.o
+PacketIntercepter-objs := PacketIntercept.o ../common/stringify/to_string.o
 
 ccflags-y := -Wno-declaration-after-statement
 
