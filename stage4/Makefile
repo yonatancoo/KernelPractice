@@ -1,4 +1,5 @@
-obj-m += PsIntercept.o
+obj-m += PsIntercepter.o
+PsIntercepter-objs := PsIntercept.o ../common/syscall_hijacking/syscall_hijack.o
 
 ccflags-y := -Wno-declaration-after-statement
 
