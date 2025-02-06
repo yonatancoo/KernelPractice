@@ -1,5 +1,6 @@
-obj-m += NetStatIntercept.o
-
+obj-m += NetStatIntercepter.o
+NetStatIntercepter-objs := NetStatIntercept.o ../common/stringify/to_string.o
+ 
 ccflags-y := -Wno-declaration-after-statement
 
 all:

