@@ -1,5 +1,5 @@
-obj-m += LsIntercepted.o
-LsIntercepted-objs := LsIntercept.o ../common/syscall_hijacking/syscall_hijack.o
+obj-m += LsIntercepter.o
+LsIntercepter-objs := LsIntercept.o ../common/syscall_hijacking/syscall_hijack.o
 
 ccflags-y := -Wno-declaration-after-statement
 
