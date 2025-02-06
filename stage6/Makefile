@@ -1,6 +1,6 @@
 obj-m += LsModIntercept.o
 
-ccflags-y := -Wno-declaration-after-statement
+ccflags-y := -Wno-unknown-pragmas -Wno-declaration-after-statement
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
