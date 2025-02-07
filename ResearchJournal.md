@@ -14,7 +14,7 @@ C.
 # Stage 2:
 Read about strace & tried figuring out what the syscalls used by ls mean.
 Tried reading from the start, but it seems that a substantial amount of calls aren't all that relevant.
-Tried reading from the end—seems that getdents64 is the call responsible for getting the file names, which is then followed by write (which writes the result to the console).
+Tried reading from the end, seems that getdents64 is the call responsible for getting the file names, which is then followed by write (which writes the result to the console).
 
 If there's a way to intercept either of these calls, it should be possible to hide the file.
 After looking around a bit for a way to intercept syscalls, I came across something called the "LD_PRELOAD trick".
@@ -58,7 +58,7 @@ After fixing the pt_regs struct, the issue still wasn't solved; it seems I wasn'
 The hook is actually hiding the file now, but the 'last' file in the array shows up twice.
 The total length I returned was too long; after fixing it, the duplication glitch was resolved. All that's left is to patch up the code & figure out the bug I experienced with the pointer types.
 
-The bug was due to the "pointer" I was increasing being a struct; once I turned it into a pointer, iterating through the array worked as expected.
+The bug was due to the pointer I was iterating over. The linux_dirents64 struct has a dynamic size, so normal pointer arithmatic doesn't work; once I turned it into a char pointer, iterating through the array worked as expected.
 Now that the module is stable, I've deleted some of the code I kept due to 'suspicions'.
 
 # Stage 3:
@@ -182,7 +182,12 @@ As expected, the file's content is the number of modules referencing the current
 
 Relying on the same approach I used for getdents64 on the read syscall (using the file descriptor to tell which file is being opened), it should be possible to "adjust" the contents of refcnt as needed.
 
-# Notes
+# Appendix
 
-Decided to make the module params editable via their /sys/ files in order to enable them to be changed during module runtime.
-Moved "common" functions (functions used by multiple files) to a different file.
+1. Decided to make the module params editable via their /sys/ files in order to enable them to be changed during module runtime.
+2. Moved "common" functions (functions used by multiple files) to a different file.
+3. While testing stage-3, I saw that after "pinging" (curling) the hidden socket, an additional socket was created. 
+One that was not hidden by the module. That socket "belongs" to the "client", so while it's technically not the socket we're trying to hide it does make it obvious that the socket exists.
+
+After rereading tcp4_seq_show I saw that the ip and port of the socket are stored in different structs, depending on the current socket state.
+Adding a switch statement which extracts the values from the correct struct fixed the issue.
