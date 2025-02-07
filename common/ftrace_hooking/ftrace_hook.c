@@ -27,7 +27,7 @@ int setup_kernel_func_hook(struct fthook *hook, char *func_to_override_name, uns
     unsigned long original_func_address = kallsyms_lookup_name(func_to_override_name);
     if (!original_func_address) {
         pr_warn("Failed to find %s!", func_to_override_name);            
-        return -1;
+        return -ENXIO;
     }
 
     return setup_hook_base(hook, original_func_address, new_func_address);
@@ -37,7 +37,7 @@ int setup_syscall_hook(struct fthook *hook, int syscall_number, unsigned long ne
     unsigned long lookup_res = kallsyms_lookup_name("sys_call_table");
     if (!lookup_res) {
         pr_warn("Failed to get sys_call_table pointer!");
-        return -1;
+        return -ENXIO;
     }
     unsigned long *syscall_table = (unsigned long*)lookup_res;
 

@@ -88,7 +88,7 @@ unsigned int handle_arp_packet(void *priv, struct sk_buff *skb, const struct nf_
 int load(void) {
     if (ip_to_hide == NULL) {
         pr_warn("ip to hide has not been set! Existing...");
-        return -1;
+        return -EINVAL;
     }
 
     pr_info("Initializing... ip to hide: %s port: %d", ip_to_hide, port_to_hide);
