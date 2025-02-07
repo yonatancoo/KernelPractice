@@ -3,11 +3,12 @@
 #include "cr_memory_premissions.h"
 
 unsigned long hijack_syscall(int syscall_number, unsigned long call_overide_ptr) {
-    unsigned long *syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
-    if (syscall_table == NULL) {
+    unsigned long lookup_res = kallsyms_lookup_name("sys_call_table");
+    if (!lookup_res) {
         pr_warn("Failed to get sys_call_table pointer!");
         return 0;
     }
+    unsigned long *syscall_table = (unsigned long*)lookup_res;
 
     unsigned long original_syscall_pointer = syscall_table[syscall_number];
 
@@ -20,10 +21,13 @@ unsigned long hijack_syscall(int syscall_number, unsigned long call_overide_ptr)
 }
 
 void restore_syscall(int syscall_number, unsigned long original_call_ptr) {
-    unsigned long *syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
-    if (syscall_table == NULL) {
+    unsigned long lookup_res = kallsyms_lookup_name("sys_call_table");
+    if (!lookup_res) {
         pr_warn("Failed to get sys_call_table pointer!");
+        return;
     }
+    unsigned long *syscall_table = (unsigned long*)lookup_res;
+    
 
     disable_write_protect();
     syscall_table[syscall_number] = original_call_ptr;  
