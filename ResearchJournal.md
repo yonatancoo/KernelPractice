@@ -185,3 +185,4 @@ Relying on the same approach I used for getdents64 on the read syscall (using th
 # Notes
 
 Decided to make the module params editable via their /sys/ files in order to enable them to be changed during module runtime.
+Moved "common" functions (functions used by multiple files) to a different file.
