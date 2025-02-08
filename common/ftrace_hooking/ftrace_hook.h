@@ -8,3 +8,4 @@ struct fthook {
 
 int setup_kernel_func_hook(struct fthook *hook, char *func_to_override_name, unsigned long new_func_address);
 int setup_syscall_hook(struct fthook *hook, int syscall_number, unsigned long new_func_address);
+void remove_hook(struct fthook *hook);

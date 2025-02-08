@@ -186,8 +186,8 @@ Relying on the same approach I used for getdents64 on the read syscall (using th
 
 1. Decided to make the module params editable via their /sys/ files in order to enable them to be changed during module runtime.
 2. Moved "common" functions (functions used by multiple files) to a different file.
-3. While testing stage-3, I saw that after "pinging" (curling) the hidden socket, an additional socket was created. 
-One that was not hidden by the module. That socket "belongs" to the "client", so while it's technically not the socket we're trying to hide it does make it obvious that the socket exists.
+3. While testing stage-3, I saw that after "pinging" (curling) the hidden socket, an additional socket was created.
+One that was not hidden by the module. That socket "belongs" to the "client", so while it's technically not the socket we're trying to hide, it does make it obvious that the socket exists.
 
 After rereading tcp4_seq_show I saw that the ip and port of the socket are stored in different structs, depending on the current socket state.
-Adding a switch statement which extracts the values from the correct struct fixed the issue.
+Adding a switch statement that extracts the values from the correct struct fixed the issue.

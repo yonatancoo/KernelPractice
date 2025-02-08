@@ -41,6 +41,11 @@ int setup_syscall_hook(struct fthook *hook, int syscall_number, unsigned long ne
     }
     unsigned long *syscall_table = (unsigned long*)lookup_res;
 
-    unsigned long original_syscall_pointer = syscall_table[syscall_number];
-    return setup_hook_base(hook, original_syscall_pointer, new_func_address);
+    unsigned long original_syscall_address = syscall_table[syscall_number];
+    return setup_hook_base(hook, original_syscall_address, new_func_address);
+}
+
+void remove_hook(struct fthook *hook) {
+    unregister_ftrace_function(&hook->ops);
+    ftrace_set_filter_ip(&hook->ops, hook->original_function_address, 1, 0);
 }

