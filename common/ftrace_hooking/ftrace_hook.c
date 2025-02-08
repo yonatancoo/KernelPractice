@@ -46,6 +46,6 @@ int setup_syscall_hook(struct fthook *hook, int syscall_number, unsigned long ne
 }
 
 void remove_hook(struct fthook *hook) {
-    unregister_ftrace_function(&hook->ops);
     ftrace_set_filter_ip(&hook->ops, hook->original_function_address, 1, 0);
+    unregister_ftrace_function(&hook->ops);
 }
