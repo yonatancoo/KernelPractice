@@ -6,6 +6,7 @@ The M at the end of the 'make' command is used to tell the build system to fetch
 MODULE_LICENSE("GPL") is required when using GPL libs (also causes an annoying compilation warning).
 
 A. How to print from the kernel: use the printk macro (or one of the various pr_{log_level} macros, depending on the need) to print to the kernel log. 
+
 B. How to compile a kernel module: Create a makefile & use kbuilds' obj-m += {file_name}.o - This tells kbuild to build a kernel module using the source file named {file_name}.c (after building {file_name}.o & linking it with its source file).
 C.
 1. How to load/unload a kernel module: insmod for loading, rmmod for unloading, & modprobe can do both while also being more user-friendly (as an example, rmmode mentions that the command modprobe -r removes modules as well as their dependent modules, which is safer).
