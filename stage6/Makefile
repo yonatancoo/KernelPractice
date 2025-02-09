@@ -1,5 +1,5 @@
 obj-m += LsModIntercepter.o
-LsModIntercepter-objs := LsModIntercept.o ../common/ftrace_hooking/ftrace_hook.o
+LsModIntercepter-objs := LsModIntercept.o ../common/ftrace_hooking/ftrace_hook.o ../common/waitable_counters/waitable_counter.o
 
 ccflags-y := -Wno-unknown-pragmas -Wno-declaration-after-statement
 

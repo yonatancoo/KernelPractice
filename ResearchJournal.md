@@ -192,3 +192,21 @@ One that was not hidden by the module. That socket "belongs" to the "client", so
 
 After rereading tcp4_seq_show I saw that the ip and port of the socket are stored in different structs, depending on the current socket state.
 Adding a switch statement that extracts the values from the correct struct fixed the issue.
+4. While testing stage-6, I saw that sometimes, when removing the module a kernel panic would be thrown.
+After reading the log, I noticed that the crash was due to cpptools (the extension I use for c in visual studio code) tries to access invalid memory.
+
+I was pretty sure that the 'read' syscall hook was to blame, probably due to the module's new_read function getting deallocated while a read call was in-progress.
+Checking the syscalls being called by cpptools confirmed my suspicions.
+
+I tried adding an atomic counter to the new_read function, and simply kept the module loaded so long as the counter was above 0.
+Using this method the module never unloaded. It took me some time to figure out why, but eventually I came to realize it was due to rmmod (which itself uses the read syscall).
+
+I then added a validation to my "current read syscalls" counter that only increments/decrements the counter if the calling process is NOT rmmod (which I could tell by using the "current" variable: https://stackoverflow.com/questions/10524500/in-linux-how-do-i-retrieve-the-pid-of-the-process-making-a-system-call).
+
+That seems to (mostly) solve the issue.
+That being said, it's far from perfect. 
+Should a read operation that doesn't return be called while the module is loaded, the counter really will never reach 0.
+
+Using waitqueues (https://embetronicx.com/tutorials/linux/device-drivers/waitqueue-in-linux-device-driver-tutorial/#2_wait_event_timeout) I implemented a timeout (which will cause the 'stuck'/'pending' read calls to crash, but I think that's a decent enough compromise).
+
+I have also considered ditching the read syscall & hooking the openat request such that it returns a file descriptor of my choice, but from reading a bit about it messing with the file descriptor might be even more risky.

