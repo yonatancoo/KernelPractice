@@ -210,3 +210,6 @@ Should a read operation that doesn't return be called while the module is loaded
 Using waitqueues (https://embetronicx.com/tutorials/linux/device-drivers/waitqueue-in-linux-device-driver-tutorial/#2_wait_event_timeout) I implemented a timeout (which will cause the 'stuck'/'pending' read calls to crash, but I think that's a decent enough compromise).
 
 I have also considered ditching the read syscall & hooking the openat request such that it returns a file descriptor of my choice, but from reading a bit about it messing with the file descriptor might be even more risky.
+
+I've also tried to manually change the value of the refcnt variable in the module struct, which is pretty simple to do (this very branch).
+Issue is, this struct is used all throughout the kernel and may affect behavior I am just not aware of (though as far as I can tell, critical segments like remove_module don't rely on this value to determine if a module can be removed).
