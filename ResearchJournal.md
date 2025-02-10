@@ -192,3 +192,10 @@ One that was not hidden by the module. That socket "belongs" to the "client", so
 
 After rereading tcp4_seq_show I saw that the ip and port of the socket are stored in different structs, depending on the current socket state.
 Adding a switch statement that extracts the values from the correct struct fixed the issue.
+4. While "playing" around with stage-6 I realized that a race condition was somewhat likely to happen when unhooking the read function hook.
+
+After trying several different ways to solve (or get around) the race condition (two of which can be seen in the "read_fix_attempt" and "hide_by_refcnt_change" branches) I "went back to the drawing board", and tried seeing if there's a different, simpler way to change the value of refcnt.
+
+While reading about the /sys/ file-system I decided to browse module.c again and came across show_refcnt, a hookable function that's used to populate the /sys/module/{module_name}/refcnt file.
+
+Hooking it & changing the value it writes to the buffer worked, such that I no longer need to rely on hooking the read syscall.
